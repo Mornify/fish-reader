@@ -51,17 +51,27 @@ impl AppState {
 
     fn persist_key(&self, key: &str) -> Result<(), String> {
         let body = serde_json::json!({ "fish_api_key": key });
-        fs::write(
-            &self.config_path,
-            serde_json::to_string_pretty(&body).unwrap_or_default(),
-        )
-        .map_err(|e| format!("Couldn't save your key: {e}"))?;
-        // owner read/write only — never world-readable
+        let contents = serde_json::to_string_pretty(&body).unwrap_or_default();
+
+        // create with owner-only permissions from the start — never briefly
+        // world-readable
         #[cfg(unix)]
         {
-            use std::os::unix::fs::PermissionsExt;
-            let _ = fs::set_permissions(&self.config_path, fs::Permissions::from_mode(0o600));
+            use std::io::Write;
+            use std::os::unix::fs::OpenOptionsExt;
+            let mut file = fs::OpenOptions::new()
+                .write(true)
+                .create(true)
+                .truncate(true)
+                .mode(0o600)
+                .open(&self.config_path)
+                .map_err(|e| format!("Couldn't save your key: {e}"))?;
+            file.write_all(contents.as_bytes())
+                .map_err(|e| format!("Couldn't save your key: {e}"))?;
         }
+        #[cfg(not(unix))]
+        fs::write(&self.config_path, contents)
+            .map_err(|e| format!("Couldn't save your key: {e}"))?;
         Ok(())
     }
 }
@@ -152,9 +162,16 @@ async fn list_voices(
     if self_only.unwrap_or(false) {
         req = req.query(&[("self", "true")]);
     }
-    let resp = req.send().await.map_err(|e| e.to_string())?;
+    let resp = req
+        .send()
+        .await
+        .map_err(|_| "Couldn't reach Fish Audio. Check your connection.".to_string())?;
+    // a rejected key must route to the reconnect screen, not a raw HTTP string
+    if matches!(resp.status().as_u16(), 401 | 403) {
+        return Err(NO_KEY.into());
+    }
     if !resp.status().is_success() {
-        return Err(format!("Fish API error: HTTP {}", resp.status()));
+        return Err(format!("Fish Audio couldn't load voices (error {}).", resp.status()));
     }
     resp.json().await.map_err(|e| e.to_string())
 }
@@ -290,6 +307,10 @@ async fn tts(
         .send()
         .await;
     if let Ok(resp) = resp {
+        // a rejected key must reach the reconnect screen, not a raw HTTP string
+        if matches!(resp.status().as_u16(), 401 | 403) {
+            return Err(NO_KEY.into());
+        }
         if resp.status().is_success() {
             if let Ok(raw) = resp.text().await {
                 (audio, segments) = parse_timestamp_sse(&raw);
@@ -308,11 +329,17 @@ async fn tts(
             .json(&body)
             .send()
             .await
-            .map_err(|e| e.to_string())?;
+            .map_err(|_| "Couldn't reach Fish Audio. Check your connection.".to_string())?;
+        if matches!(resp.status().as_u16(), 401 | 403) {
+            return Err(NO_KEY.into());
+        }
         if !resp.status().is_success() {
             let status = resp.status();
-            let detail = resp.text().await.unwrap_or_default();
-            return Err(format!("Fish TTS error: HTTP {status} {detail}"));
+            return Err(match status.as_u16() {
+                429 => "Fish Audio is rate limiting your account. Try again shortly.".to_string(),
+                402 => "Your Fish Audio account is out of credit.".to_string(),
+                _ => format!("Narration failed (error {status}). Try again."),
+            });
         }
         audio = resp.bytes().await.map_err(|e| e.to_string())?.to_vec();
     }
@@ -336,6 +363,46 @@ async fn tts(
         cached: false,
         segments,
     })
+}
+
+#[derive(Serialize)]
+struct CacheInfo {
+    bytes: u64,
+    files: u64,
+}
+
+/// Size of the generated-audio cache, for the Settings screen.
+#[tauri::command]
+fn cache_info(state: tauri::State<'_, AppState>) -> CacheInfo {
+    let mut bytes = 0u64;
+    let mut files = 0u64;
+    if let Ok(entries) = fs::read_dir(&state.cache_dir) {
+        for entry in entries.flatten() {
+            if let Ok(meta) = entry.metadata() {
+                if meta.is_file() {
+                    bytes += meta.len();
+                    // count audio clips, not the sidecar alignment files
+                    if entry.path().extension().and_then(|e| e.to_str()) == Some("mp3") {
+                        files += 1;
+                    }
+                }
+            }
+        }
+    }
+    CacheInfo { bytes, files }
+}
+
+/// Delete all cached narration. Books, progress and bookmarks are untouched;
+/// audio is simply regenerated (and re-cached) next time it's played.
+#[tauri::command]
+fn clear_cache(state: tauri::State<'_, AppState>) -> Result<(), String> {
+    let entries = fs::read_dir(&state.cache_dir).map_err(|e| e.to_string())?;
+    for entry in entries.flatten() {
+        if entry.path().is_file() {
+            let _ = fs::remove_file(entry.path());
+        }
+    }
+    Ok(())
 }
 
 /// Read app-data/favorites-seed.json (written by external import helpers) so
@@ -371,8 +438,16 @@ fn save_book(app: tauri::AppHandle, id: String, data: String) -> Result<(), Stri
         .chars()
         .filter(|c| c.is_ascii_alphanumeric() || *c == '-')
         .collect();
-    let path = books_dir(&app)?.join(format!("{safe}.json"));
-    fs::write(path, data).map_err(|e| e.to_string())
+    if safe.is_empty() {
+        return Err("Invalid book id".into());
+    }
+    // write-then-rename: a crash or full disk mid-save can never truncate an
+    // existing book into an unreadable file (progress autosaves are frequent)
+    let dir = books_dir(&app)?;
+    let path = dir.join(format!("{safe}.json"));
+    let tmp = dir.join(format!("{safe}.json.part"));
+    fs::write(&tmp, data).map_err(|e| e.to_string())?;
+    fs::rename(&tmp, &path).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -422,16 +497,35 @@ pub fn run() {
             fs::create_dir_all(&cache_dir)?;
             let config_path = data_dir.join("config.json");
 
-            // stored key wins; a dev .env only seeds an unconfigured install
-            let stored = read_stored_key(&config_path);
-            let api_key = if stored.is_empty() { env_api_key() } else { stored };
+            // stored key wins; otherwise migrate a pre-0.2.1 app-data/.env (or
+            // a dev .env) once, so upgrading never logs anyone out
+            let mut api_key = read_stored_key(&config_path);
+            if api_key.is_empty() {
+                let _ = dotenvy::from_path(data_dir.join(".env"));
+                api_key = env_api_key();
+            }
+
+            let migrated = !api_key.is_empty() && !config_path.exists();
 
             app.manage(AppState {
                 api_key: Mutex::new(api_key),
-                http: reqwest::Client::new(),
+                // without timeouts a stalled request hangs playback forever
+                http: reqwest::Client::builder()
+                    .connect_timeout(std::time::Duration::from_secs(10))
+                    .timeout(std::time::Duration::from_secs(90))
+                    .build()
+                    .unwrap_or_default(),
                 cache_dir,
                 config_path,
             });
+
+            // persist the migrated key so this only ever happens once
+            if migrated {
+                let state = app.state::<AppState>();
+                if let Ok(key) = state.key() {
+                    let _ = state.persist_key(&key);
+                }
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -443,7 +537,9 @@ pub fn run() {
             read_favorites_seed,
             api_key_status,
             set_api_key,
-            clear_api_key
+            clear_api_key,
+            cache_info,
+            clear_cache
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

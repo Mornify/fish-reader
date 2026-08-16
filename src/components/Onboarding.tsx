@@ -67,7 +67,8 @@ export function Onboarding({ mode = "full", onDone }: Props) {
     setChosen(voice.id);
     prefs.setDefaultVoice(voice);
     prefs.pushRecent(voice);
-    prefs.toggleFavorite(voice);
+    // toggle would UN-favourite on a second click of the same voice
+    if (!prefs.favorites().some((f) => f.id === voice.id)) prefs.toggleFavorite(voice);
   }
 
   function finish() {
@@ -154,6 +155,11 @@ export function Onboarding({ mode = "full", onDone }: Props) {
             <p className="onboard-fineprint">
               Stored only on this Mac, readable only by your user account.
             </p>
+            {/* never trap someone here — offline, or just not ready. They can
+                still import and read; narration asks again when they press play */}
+            <button className="text-button onboard-skip" onClick={onDone}>
+              Skip for now
+            </button>
           </section>
         )}
 

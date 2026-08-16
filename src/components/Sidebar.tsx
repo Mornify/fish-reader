@@ -1,4 +1,4 @@
-import { BookIcon, PlusIcon, WaveIcon } from "./Icons";
+import { BookIcon, GearIcon, PlusIcon, WaveIcon } from "./Icons";
 
 export type AppView = "library" | "voices";
 
@@ -6,9 +6,10 @@ interface Props {
   onUpload: () => void;
   active: AppView;
   onNavigate: (view: AppView) => void;
+  onSettings: () => void;
 }
 
-export function Sidebar({ onUpload, active, onNavigate }: Props) {
+export function Sidebar({ onUpload, active, onNavigate, onSettings }: Props) {
   return (
     <aside className="sidebar">
       <div className="sidebar-brand titlebar-pad" data-tauri-drag-region>
@@ -38,6 +39,10 @@ export function Sidebar({ onUpload, active, onNavigate }: Props) {
           <WaveIcon /> Saved voices
         </button>
       </nav>
+
+      <button className="nav-item sidebar-settings" onClick={onSettings}>
+        <GearIcon /> Settings
+      </button>
 
       <div className="sidebar-footer">Powered by Fish Audio · local &amp; private</div>
     </aside>

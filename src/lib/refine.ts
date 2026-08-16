@@ -242,12 +242,18 @@ export function detectChapters(text: string): { title: string; start: number }[]
       found.push({ title: line.replace(/\s+/g, " "), start: match.index });
     }
   }
-  // believable = at least 2 and they don't hug each other
+  // believable = at least 2, and not stacked on top of each other. The gap
+  // only needs to rule out consecutive heading lines ("PART I" directly above
+  // "CHAPTER ONE") and table-of-contents rows — a real chapter can still be
+  // short, so keep this threshold modest.
   if (found.length < 2) return [];
-  const spaced = found.filter(
-    (c, i) => i === 0 || c.start - found[i - 1].start > 200,
-  );
-  return spaced.length >= 2 ? spaced : [];
+  const spaced = found.filter((c, i) => i === 0 || c.start - found[i - 1].start > 120);
+  if (spaced.length < 2) return [];
+  // a dense run of headings across the whole document means we're looking at a
+  // contents listing, not chapters
+  const span = spaced[spaced.length - 1].start - spaced[0].start;
+  const averageGap = span / Math.max(1, spaced.length - 1);
+  return averageGap >= 120 ? spaced : [];
 }
 
 /* ---------------- top-level ---------------- */

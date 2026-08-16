@@ -33,10 +33,16 @@ export function Reader({ book, onBack, onMiniWindow }: Props) {
   const s = useSyncExternalStore(subscribeSession, getSession);
   const activeBook = s.book?.id === book.id ? s.book : book;
   const sentences = s.book?.id === book.id ? s.sentences : [];
-  const paragraphs = useMemo(
-    () => buildParagraphs(activeBook.text, sentences),
-    [activeBook.text, sentences],
-  );
+  // Build each paragraph's sentence slice ONCE. Slicing inside render would
+  // hand <Para> a fresh array every time and defeat its React.memo, causing the
+  // whole document to reconcile on every spoken word.
+  const paragraphs = useMemo(() => {
+    return buildParagraphs(activeBook.text, sentences).map((p) => ({
+      ...p,
+      text: activeBook.text.slice(p.start, p.end),
+      slice: sentences.slice(p.sentenceFrom, p.sentenceTo),
+    }));
+  }, [activeBook.text, sentences]);
 
   const [voicesOpen, setVoicesOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -117,11 +123,15 @@ export function Reader({ book, onBack, onMiniWindow }: Props) {
     }, 60);
   }
 
-  // opening a book lands you exactly where you left off
+  // Opening a book lands you exactly where you left off. This must wait for
+  // the session to supply sentences — on a large book the first render has
+  // none, so a fixed timeout would fire before the target element exists.
+  const textReady = paragraphs.length > 0;
   useEffect(() => {
+    if (!textReady) return;
     scrollToCurrent("auto");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeBook.id]);
+  }, [activeBook.id, textReady]);
 
   // keep the active sentence centered while playing
   useEffect(() => {
@@ -183,9 +193,9 @@ export function Reader({ book, onBack, onMiniWindow }: Props) {
             {paragraphs.map((p, pi) => (
               <Para
                 key={pi}
-                text={activeBook.text.slice(p.start, p.end)}
+                text={p.text}
                 pStart={p.start}
-                sentences={sentences.slice(p.sentenceFrom, p.sentenceTo)}
+                sentences={p.slice}
                 firstIdx={p.sentenceFrom}
                 activeIdx={s.sentenceIdx >= p.sentenceFrom && s.sentenceIdx < p.sentenceTo ? s.sentenceIdx : -1}
                 word={s.word && s.word.start >= p.start && s.word.end <= p.end ? s.word : null}

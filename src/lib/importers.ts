@@ -300,7 +300,9 @@ function markdownToText(markdown: string): string {
       .replace(/^[-*+]\s+/gm, "• ")
       .replace(/^\d+\.\s+/gm, "")
       .replace(/(\*\*|__)(.*?)\1/g, "$2")
-      .replace(/([*_~`])(.*?)\1/g, "$2"),
+      .replace(/([*~`])(.*?)\1/g, "$2")
+      // only strip _emphasis_ at word boundaries, so snake_case_names survive
+      .replace(/(^|[\s([{"'])_(\S(?:.*?\S)?)_(?=[\s)\]}"'.,!?;:]|$)/g, "$1$2"),
   );
 }
 

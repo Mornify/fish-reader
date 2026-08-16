@@ -1689,6 +1689,56 @@ svg {
   background: rgba(126, 224, 129, 0.08);
 }
 
+.onboard-skip {
+  margin-top: 2px;
+  font-size: 13px;
+}
+
+/* ---------- settings ---------- */
+
+.settings-modal {
+  width: 560px;
+  gap: 4px;
+}
+
+.sidebar-settings {
+  margin-top: auto;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 16px 0;
+  border-top: 1px solid #242424;
+}
+.settings-row:first-of-type {
+  border-top: none;
+}
+.settings-row strong {
+  display: block;
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 3px;
+}
+.settings-row p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  max-width: 42ch;
+}
+.settings-row .button {
+  flex-shrink: 0;
+}
+
+.settings-confirm {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
 /* ---------- update banner ---------- */
 
 .update-banner {

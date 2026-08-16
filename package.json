@@ -9,7 +9,8 @@
     "build:mac": "tauri build --bundles app && codesign --force --deep --sign - 'src-tauri/target/release/bundle/macos/Fish Reader.app' && codesign --verify --deep --strict 'src-tauri/target/release/bundle/macos/Fish Reader.app'",
     "preview": "vite preview",
     "tauri": "tauri",
-    "release": "bash scripts/release.sh"
+    "release": "bash scripts/release.sh",
+    "test": "node tests/run.mjs"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.3.0",

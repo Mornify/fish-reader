@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Book } from "../types";
 import { bookProgress, estimateMinutes, formatDuration, wordsIn } from "../lib/books";
 import { MoreIcon, PlayIcon, PlusIcon, SearchIcon, TrashIcon } from "./Icons";
@@ -26,7 +26,33 @@ export function Library({ books, query, onQuery, onImport, onOpen, onDelete }: P
       ),
     [books, normalized],
   );
-  const totalWords = books.reduce((sum, book) => sum + wordsIn(book.text), 0);
+  const totalWords = useMemo(
+    () => books.reduce((sum, book) => sum + wordsIn(book.text), 0),
+    [books],
+  );
+
+  // a menu that only closes via its own button feels broken — dismiss on any
+  // outside click or Escape, like every native context menu
+  useEffect(() => {
+    if (!menuBookId) return;
+    const dismiss = (event: Event) => {
+      if (event instanceof KeyboardEvent && event.key !== "Escape") return;
+      if (
+        event instanceof MouseEvent &&
+        (event.target as HTMLElement)?.closest(".book-menu-wrap")
+      ) {
+        return;
+      }
+      setMenuBookId(null);
+      setConfirmBookId(null);
+    };
+    document.addEventListener("mousedown", dismiss);
+    document.addEventListener("keydown", dismiss);
+    return () => {
+      document.removeEventListener("mousedown", dismiss);
+      document.removeEventListener("keydown", dismiss);
+    };
+  }, [menuBookId]);
 
   return (
     <main className="main-col view-enter">

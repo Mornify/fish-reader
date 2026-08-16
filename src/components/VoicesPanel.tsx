@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { listVoices, VoiceSort } from "../lib/fish";
+import { isMissingKeyError } from "../lib/account";
+import { session } from "../lib/session";
 import { prefs, SavedVoice, slim } from "../lib/prefs";
 import { orbStyle } from "../lib/orb";
 import { voicePreview } from "../lib/preview";
@@ -65,6 +67,18 @@ interface Props {
   currentVoiceId?: string;
   onSelect: (v: SavedVoice) => void;
   onClose: () => void;
+}
+
+/** Never show a raw backend string. A rejected key is escalated so the app can
+ *  offer the reconnect screen instead of a dead end. */
+function reportVoiceError(reason: unknown, setError: (msg: string) => void) {
+  const raw = String(reason ?? "");
+  if (isMissingKeyError(raw)) {
+    session.reportError(raw);
+    setError("Reconnect your Fish Audio account to browse voices.");
+    return;
+  }
+  setError(raw.replace(/^Error:\s*/, "") || "Something went wrong loading voices.");
 }
 
 export function VoicesPanel({ open, currentVoiceId, onSelect, onClose }: Props) {
@@ -162,7 +176,7 @@ export function VoicesPanel({ open, currentVoiceId, onSelect, onClose }: Props) 
       setTotal(totalCount);
       setPageNum(page);
     } catch (e) {
-      setError(String(e));
+      reportVoiceError(e, setError);
     } finally {
       setLoading(false);
     }
@@ -179,7 +193,7 @@ export function VoicesPanel({ open, currentVoiceId, onSelect, onClose }: Props) 
       const page = await listVoices({ selfOnly: true, pageSize: 50 });
       setCreated(page.items.map(slim));
     } catch (e) {
-      setError(String(e));
+      reportVoiceError(e, setError);
     } finally {
       setLoading(false);
     }

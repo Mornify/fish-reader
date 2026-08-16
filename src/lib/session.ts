@@ -95,6 +95,9 @@ function startTicker() {
         sleepDeadline = null;
         patch.sleepRemaining = null;
         session.pause();
+        // pause() no-ops when nothing was playing, so stop the interval here
+        // rather than relying on an onState callback that may never fire
+        stopTickerIfIdle();
       }
     }
     if (Object.keys(patch).length) emit(patch);
@@ -170,6 +173,10 @@ function makePlayer(voice: SavedVoice): ReaderPlayer {
   );
   p.setRate(prefs.rate());
   p.setVolume(prefs.volume());
+  // seed the position, otherwise a lazily-created player (skip / seek / voice
+  // change before pressing play) starts from sentence 0 and overwrites the
+  // saved reading position
+  p.index = Math.max(0, Math.min(state.sentenceIdx, state.sentences.length - 1));
   player = p;
   return p;
 }
@@ -213,7 +220,10 @@ export const session = {
     if (!state.voice) return false;
     voicePreview.stop();
     emit({ error: "" });
-    (player ?? makePlayer(state.voice)).play(from ?? state.sentenceIdx);
+    const p = player ?? makePlayer(state.voice);
+    // passing `undefined` lets the player resume mid-sentence where it paused;
+    // only force a position when we actually need to move
+    p.play(from !== undefined ? from : p.index === state.sentenceIdx ? undefined : state.sentenceIdx);
     return true;
   },
 
@@ -304,10 +314,12 @@ export const session = {
     player?.pause();
   },
 
-  /** Tear the whole session down (mini player disappears). */
-  stop() {
+  /** Tear the whole session down (mini player disappears).
+   *  `persist: false` when the book is being deleted — otherwise the pending
+   *  save races the delete and can resurrect the book. */
+  stop(persist = true) {
     window.clearTimeout(saveTimer);
-    persistNow();
+    if (persist) persistNow();
     player?.dispose();
     player = null;
     sleepDeadline = null;
@@ -336,6 +348,12 @@ export const session = {
 
   clearError() {
     if (state.error) emit({ error: "" });
+  },
+
+  /** Route an error raised outside playback (e.g. browsing voices) through the
+   *  same handling — including the "reconnect your account" flow. */
+  reportError(message: string) {
+    emit({ error: message });
   },
 
   /** Recreate the player with expressive tags on/off, keeping position. */

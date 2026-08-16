@@ -23,6 +23,36 @@ const MAX_TTS_CHARS = 400;
  * Sentences longer than MAX_TTS_CHARS are hard-split at the nearest space so
  * each TTS request stays snappy.
  */
+/** Titles Intl.Segmenter wrongly treats as sentence ends. Left unmerged, the
+ *  narrator takes a full stop after "Dr." mid-name. */
+const ABBREVIATION_END =
+  /(?:^|[\s("'])(?:mr|mrs|ms|dr|prof|st|jr|sr|vs|etc|no|fig|vol|dept|est|inc|ltd|co|corp|univ|ave|blvd|rd|mt|ft|sgt|capt|lt|col|gen|rev|hon|approx|e\.g|i\.e|pp)\.$/i;
+
+/** A lone initial ("J." in "J. R. R. Tolkien", "A." in "A. Writer") —
+ *  case-sensitive on purpose. "I" is excluded because "So do I." is a real
+ *  sentence ending; a stray "an A." merging into the next sentence is a far
+ *  cheaper mistake than pausing mid-name. */
+const INITIAL_END = /(?:^|[\s("'])(?!I\.)\p{Lu}\.$/u;
+
+function endsWithAbbreviation(text: string): boolean {
+  return ABBREVIATION_END.test(text) || INITIAL_END.test(text);
+}
+
+/** Re-join segments the segmenter cut at an abbreviation. */
+function mergeAbbreviations(list: Sentence[], source: string): Sentence[] {
+  const merged: Sentence[] = [];
+  for (const sentence of list) {
+    const prev = merged[merged.length - 1];
+    if (prev && endsWithAbbreviation(prev.text)) {
+      prev.end = sentence.end;
+      prev.text = source.slice(prev.start, prev.end).trim();
+      continue;
+    }
+    merged.push({ ...sentence });
+  }
+  return merged;
+}
+
 export function splitSentences(text: string, locale = "en"): Sentence[] {
   const seg = new Intl.Segmenter(locale, { granularity: "sentence" });
   const out: Sentence[] = [];
@@ -30,7 +60,7 @@ export function splitSentences(text: string, locale = "en"): Sentence[] {
   for (const s of seg.segment(text)) {
     pushTrimmed(out, s.segment, s.index);
   }
-  return out.flatMap(splitOverlong);
+  return mergeAbbreviations(out, text).flatMap(splitOverlong);
 }
 
 function pushTrimmed(out: Sentence[], segment: string, index: number) {

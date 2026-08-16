@@ -13,6 +13,7 @@ import { enterMiniWindow, exitMiniWindow } from "./lib/windowMode";
 import { AvailableUpdate, checkForUpdate } from "./lib/updater";
 import { hasApiKey, isMissingKeyError } from "./lib/account";
 import { Onboarding } from "./components/Onboarding";
+import { Settings } from "./components/Settings";
 import type { AppView } from "./components/Sidebar";
 import "./App.css";
 
@@ -36,6 +37,7 @@ export default function App() {
   const [view, setView] = useState<AppView>("library");
   const [loading, setLoading] = useState(true);
   const [miniWindow, setMiniWindow] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [update, setUpdate] = useState<AvailableUpdate | null>(null);
   const [updating, setUpdating] = useState(false);
   /** null = still checking, "full" = first run, "reconnect" = key stopped working */
@@ -48,9 +50,10 @@ export default function App() {
     void hasApiKey().then((ok) => setOnboarding(ok ? null : "full"));
   }, []);
 
-  // if the key is revoked/expired mid-use, the backend reports it and we ask
-  // the user to reconnect instead of showing a raw error
-  const sessionError = useSyncExternalStore(subscribeSession, getSession).error;
+  // NOTE: subscribe to narrow slices, not the whole session object. `emit()`
+  // returns a new object on every word highlight (~5×/s), so subscribing to
+  // the store itself would re-render the whole app, and the library, continuously.
+  const sessionError = useSyncExternalStore(subscribeSession, () => getSession().error);
   useEffect(() => {
     if (sessionError && isMissingKeyError(sessionError)) {
       session.pause();
@@ -108,7 +111,8 @@ export default function App() {
   }
 
   async function handleDelete(book: Book) {
-    if (getSession().book?.id === book.id) session.stop();
+    // stop without persisting, so a queued progress save can't recreate the file
+    if (getSession().book?.id === book.id) session.stop(false);
     await deleteBook(book.id).catch(() => {});
     setBooks((b) => b.filter((x) => x.id !== book.id));
   }
@@ -118,7 +122,7 @@ export default function App() {
     setBooks(await loadBooks().catch(() => books));
   }
 
-  const sessionBook = useSyncExternalStore(subscribeSession, getSession).book;
+  const sessionBook = useSyncExternalStore(subscribeSession, () => getSession().book);
 
   // hold the UI back one tick so first-run users never see the library flash
   if (onboarding === undefined) return <div className="boot-screen" />;
@@ -146,6 +150,7 @@ export default function App() {
         active={view}
         onNavigate={setView}
         onUpload={() => setImporting(true)}
+        onSettings={() => setSettingsOpen(true)}
       />
       {view === "library" ? (
         loading ? (
@@ -179,6 +184,16 @@ export default function App() {
         </div>
       )}
       {sessionBook && <MiniPlayer onExpand={() => setReading(sessionBook)} />}
+      {settingsOpen && (
+        <Settings
+          onClose={() => setSettingsOpen(false)}
+          onReconnect={() => {
+            setSettingsOpen(false);
+            setReading(null);
+            setOnboarding("reconnect");
+          }}
+        />
+      )}
       {importing && (
         <Suspense fallback={<div className="overlay" aria-label="Opening importer" />}>
           <ImportModal onClose={() => setImporting(false)} onImported={handleImported} />

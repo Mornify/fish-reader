@@ -43,6 +43,13 @@ SIG_SRC="$ARCHIVE_SRC.sig"
 ASSET="Fish-Reader_${VERSION}_aarch64.app.tar.gz"
 cp "$ARCHIVE_SRC" "/tmp/$ASSET"
 
+# Humans get a double-clickable zip (the tar.gz above is the updater format).
+# The name is version-less so the landing page can link to a stable URL:
+# /releases/latest/download/Fish-Reader-macOS.zip
+echo "▸ packaging Fish-Reader-macOS.zip"
+rm -f "/tmp/Fish-Reader-macOS.zip"
+ditto -c -k --keepParent "$BUNDLE/Fish Reader.app" "/tmp/Fish-Reader-macOS.zip"
+
 echo "▸ writing latest.json"
 SIGNATURE="$(cat "$SIG_SRC")" ASSET="$ASSET" VERSION="$VERSION" node -e "
 const fs = require('fs');
@@ -70,7 +77,7 @@ gh release create "v$VERSION" \
   --repo "$REPO" \
   --title "Fish Reader v$VERSION" \
   --notes "Fish Reader v$VERSION" \
-  "/tmp/$ASSET" "/tmp/latest.json"
+  "/tmp/$ASSET" "/tmp/latest.json" "/tmp/Fish-Reader-macOS.zip"
 
 echo "✅ v$VERSION published — installed apps will offer the update on next launch."
 echo "   (Your local /Applications copy: cp -R \"$BUNDLE/Fish Reader.app\" /Applications/)"

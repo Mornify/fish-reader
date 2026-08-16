@@ -30,6 +30,9 @@ export async function enterMiniWindow(): Promise<boolean> {
       savedSize = { width: size.width / factor, height: size.height / factor };
     }
 
+    // the window's configured minimum (900×600) would clamp setSize and leave
+    // a full-size always-on-top window, so lower it first
+    await win.setMinSize(new LogicalSize(360, 120));
     await win.setResizable(false);
     await win.setAlwaysOnTop(true);
     await win.setSize(new LogicalSize(440, 148));
@@ -49,6 +52,7 @@ export async function exitMiniWindow(): Promise<void> {
     await win.setResizable(true);
     const s = savedSize ?? { width: 1200, height: 800 };
     await win.setSize(new LogicalSize(Math.max(s.width, 900), Math.max(s.height, 600)));
+    await win.setMinSize(new LogicalSize(900, 600)); // restore the real floor
   } catch {
     /* stay as-is */
   }

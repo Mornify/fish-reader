@@ -39,14 +39,40 @@ export function makeBook(title: string, text: string, author?: string): Book {
   };
 }
 
+/** Sentence counts are expensive (full Intl.Segmenter pass — ~750ms on a
+ *  novel), so cache per book. Keyed on length so re-imported text invalidates. */
+const sentenceCounts = new Map<string, number>();
+
+function sentenceCount(book: Book): number {
+  const key = `${book.id}:${book.text.length}`;
+  let count = sentenceCounts.get(key);
+  if (count === undefined) {
+    count = splitSentences(book.text).length;
+    sentenceCounts.set(key, count);
+  }
+  return count;
+}
+
 export function bookProgress(book: Book): number {
-  const count = splitSentences(book.text).length;
-  if (count <= 1 || book.progress <= 0) return 0;
+  // cheap exit first — an unread book never needs segmenting at all
+  if (book.progress <= 0) return 0;
+  const count = sentenceCount(book);
+  if (count <= 1) return 0;
   return Math.min(100, Math.round((book.progress / (count - 1)) * 100));
 }
 
+const wordCounts = new Map<string, number>();
+
 export function wordsIn(text: string): number {
-  return text.trim() ? text.trim().split(/\s+/).length : 0;
+  if (!text.trim()) return 0;
+  // library totals re-run on every render/keystroke; memoize by size+head
+  const key = `${text.length}:${text.slice(0, 32)}`;
+  let count = wordCounts.get(key);
+  if (count === undefined) {
+    count = text.trim().split(/\s+/).length;
+    wordCounts.set(key, count);
+  }
+  return count;
 }
 
 export async function saveBook(book: Book): Promise<void> {
