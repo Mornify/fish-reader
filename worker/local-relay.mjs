@@ -1,62 +1,73 @@
 /**
- * Local stand-in for the Cloudflare Worker, used for development and for
- * proving the relay approach works before deploying. Same rules as index.js.
+ * Local narration relay for development.
+ *
+ * This deliberately runs THE SAME handler that ships to production
+ * (`api/[...path].js`) rather than a re-implementation, so that testing against
+ * localhost actually tests the code that will serve real users. A stand-in that
+ * merely behaves similarly is how relay bugs reach production unnoticed.
  *
  *   node worker/local-relay.mjs      → http://localhost:8787
+ *
+ * The web app points here automatically when served from localhost.
  */
-import http from "node:http";
+import { createServer } from "node:http";
+import { fileURLToPath } from "node:url";
+import path from "node:path";
 
-const UPSTREAM = "https://api.fish.audio";
-const ALLOWED_PATHS = new Set(["/v1/tts", "/v1/tts/stream/with-timestamp", "/model"]);
+const here = path.dirname(fileURLToPath(import.meta.url));
+const { default: handler } = await import(
+  path.join(here, "..", "api", "[...path].js")
+);
 
-const cors = (origin) => ({
-  "Access-Control-Allow-Origin": origin || "*",
+const PORT = 8787;
+
+// The browser talks to this from a different origin during development, so
+// unlike production (where the relay is same-origin) it must answer preflight.
+const CORS = {
+  "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Access-Control-Allow-Headers": "Authorization, Content-Type, model",
   "Access-Control-Max-Age": "86400",
-  Vary: "Origin",
-});
+};
 
-http
-  .createServer(async (req, res) => {
-    const origin = req.headers.origin || "";
-    const url = new URL(req.url, "http://localhost");
+createServer(async (req, res) => {
+  if (req.method === "OPTIONS") {
+    res.writeHead(204, CORS).end();
+    return;
+  }
 
-    if (req.method === "OPTIONS") {
-      res.writeHead(204, cors(origin));
-      return res.end();
-    }
-    if (!ALLOWED_PATHS.has(url.pathname)) {
-      res.writeHead(404, cors(origin));
-      return res.end("Not found");
-    }
-    if (!req.headers.authorization) {
-      res.writeHead(401, { ...cors(origin), "Content-Type": "application/json" });
-      return res.end(JSON.stringify({ error: "Missing Authorization" }));
-    }
+  const url = `http://localhost:${PORT}${req.url}`;
+  // the app calls /v1/tts; the production handler strips a leading /api
+  const target = req.url.startsWith("/api") ? url : url.replace(/^(http:\/\/[^/]+)/, "$1/api");
 
+  const headers = new Headers();
+  for (const [k, v] of Object.entries(req.headers)) {
+    if (typeof v === "string" && !["host", "connection"].includes(k)) headers.set(k, v);
+  }
+
+  let body;
+  if (req.method !== "GET" && req.method !== "HEAD") {
     const chunks = [];
     for await (const chunk of req) chunks.push(chunk);
-    const body = chunks.length ? Buffer.concat(chunks) : undefined;
+    body = Buffer.concat(chunks);
+    headers.set("Content-Length", String(body.length));
+  }
 
-    const headers = { Authorization: req.headers.authorization };
-    if (req.headers["content-type"]) headers["Content-Type"] = req.headers["content-type"];
-    if (req.headers.model) headers.model = req.headers.model;
-
-    try {
-      const upstream = await fetch(UPSTREAM + url.pathname + url.search, {
-        method: req.method,
-        headers,
-        body: req.method === "GET" ? undefined : body,
-      });
-      const out = { ...cors(origin) };
-      const ct = upstream.headers.get("content-type");
-      if (ct) out["Content-Type"] = ct;
-      res.writeHead(upstream.status, out);
-      res.end(Buffer.from(await upstream.arrayBuffer()));
-    } catch {
-      res.writeHead(502, { ...cors(origin), "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: "Couldn't reach Fish Audio." }));
+  try {
+    const response = await handler(new Request(target, { method: req.method, headers, body }));
+    const out = { ...CORS };
+    response.headers.forEach((value, name) => {
+      if (name.toLowerCase() !== "content-encoding") out[name] = value;
+    });
+    res.writeHead(response.status, out);
+    if (response.body) {
+      for await (const chunk of response.body) res.write(chunk);
     }
-  })
-  .listen(8787, () => console.log("relay on http://localhost:8787"));
+    res.end();
+  } catch (error) {
+    res.writeHead(500, { ...CORS, "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: String(error?.message ?? error) }));
+  }
+}).listen(PORT, () => {
+  console.log(`narration relay (production handler) on http://localhost:${PORT}`);
+});

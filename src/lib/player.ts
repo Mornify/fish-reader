@@ -116,6 +116,9 @@ export class ReaderPlayer {
   private cb: PlayerCallbacks;
 
   private clipCache = new Map<number, Promise<ClipData>>();
+  /** Consecutive narration failures; gates read-ahead so an outage can't storm
+   *  the API with requests that cannot succeed. Reset by any success. */
+  private consecutiveFailures = 0;
   private audio: HTMLAudioElement | null = null;
   private audioIndex = -1;
   private audioSegments: TtsSegment[] = [];
@@ -294,13 +297,29 @@ export class ReaderPlayer {
         segments: clip.segments ?? [],
         cached: clip.cached,
       }));
-      p.catch(() => this.clipCache.delete(i)); // allow retry after transient errors
+      p.then(
+        () => {
+          this.consecutiveFailures = 0;
+        },
+        () => {
+          this.consecutiveFailures++;
+          this.clipCache.delete(i); // allow retry after transient errors
+        },
+      );
       this.clipCache.set(i, p);
     }
     return p;
   }
 
   private prefetch(from: number) {
+    // When narration is failing, reading ahead multiplies the damage: a failed
+    // sentence retries AND re-queues PREFETCH_AHEAD more clips, each of which
+    // costs two requests (timestamped endpoint, then the plain fallback). A
+    // relay outage measured 64 requests in 9 seconds that way — burning the
+    // reader's API quota precisely when nothing can succeed. Stop reading ahead
+    // until something works again; the sentence being played still retries.
+    if (this.consecutiveFailures >= 2) return;
+
     let queued = 0;
     for (let i = from; i < this.sentences.length && queued < PREFETCH_AHEAD; i++) {
       if (!isSpeakable(this.sentences[i].text)) continue;

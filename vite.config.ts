@@ -38,6 +38,12 @@ const WEB_CSP = [
 
 const webCspPlugin = {
   name: "fish-reader-web-csp",
+  // Build only. `vite dev` talks to the relay on localhost:8787, which is a
+  // different origin and so blocked by connect-src 'self' — applying the
+  // production policy in dev makes narration fail with nothing but "Failed to
+  // fetch" to go on. In production the relay is same-origin /api, so 'self'
+  // is exactly right and nothing needs loosening.
+  apply: "build" as const,
   transformIndexHtml(html: string) {
     if (!isWebBuild) return html;
     return html.replace(
