@@ -42,7 +42,6 @@ echo "▸ building the web app"
 BUILD_TARGET=web npx tsc
 BUILD_TARGET=web npx vite build
 
-# the hash we are about to publish — used to prove the deploy landed
 BUILT_ASSET="$(grep -oE 'assets/index-[A-Za-z0-9_-]+\.js' dist-web/index.html | head -1)"
 if [ -z "$BUILT_ASSET" ]; then
   echo "✗ could not find the built entry asset in dist-web/index.html" >&2
@@ -76,17 +75,27 @@ git worktree add --detach "$WORKTREE" >/dev/null
 
 echo "▸ waiting for GitHub Pages to serve the new build"
 # Pages rebuilds asynchronously; "deployed" only means something once the new
-# bundle is the one being served. Give it two minutes, then say so honestly.
+# page is the one being served.
+#
+# Compare a hash of index.html itself, NOT just the bundle filename. A change
+# that touches only the HTML — a meta tag, a CSP, a title — leaves the asset
+# hash identical, so an asset-only check reports success against a stale page.
+# That happened: the CSP was verified "live" while Pages was still serving the
+# previous HTML.
+EXPECTED_SHA="$(shasum -a 256 "$OUT/app/index.html" | cut -d' ' -f1)"
+
 for attempt in $(seq 1 40); do
-  live="$(curl -fsS -H 'Cache-Control: no-cache' "$SITE_URL/app/?cb=$attempt" 2>/dev/null || true)"
-  if printf '%s' "$live" | grep -q "$BUILT_ASSET"; then
+  live_sha="$(curl -fsS -H 'Cache-Control: no-cache' "$SITE_URL/app/?cb=$attempt" 2>/dev/null \
+              | shasum -a 256 | cut -d' ' -f1 || true)"
+  if [ "$live_sha" = "$EXPECTED_SHA" ]; then
     echo "✅ deployed and verified live → $SITE_URL/  (app at /app/)"
     exit 0
   fi
   sleep 3
 done
 
-echo "⚠️  pushed, but $SITE_URL/app/ is still serving an older bundle." >&2
-echo "    Expected: $BUILT_ASSET" >&2
+echo "⚠️  pushed, but $SITE_URL/app/ is still serving an older page." >&2
+echo "    Expected index.html sha256 $EXPECTED_SHA" >&2
+echo "    Last seen                  ${live_sha:-<no response>}" >&2
 echo "    GitHub Pages can lag a few minutes — re-check before assuming failure." >&2
 exit 1
