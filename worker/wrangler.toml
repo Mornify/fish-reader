@@ -1,0 +1,6 @@
+name = "fish-reader-relay"
+main = "index.js"
+compatibility_date = "2026-08-01"
+
+# No KV, no D1, no R2, no secrets: this Worker is stateless by design. The
+# user's API key arrives in the request and is forwarded, never stored.

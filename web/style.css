@@ -552,3 +552,234 @@ footer p {
     transition: none;
   }
 }
+
+/* ---------- legal pages ---------- */
+
+.legal {
+  padding-block: 60px 90px;
+  max-width: 760px;
+}
+.legal h1 {
+  margin: 0 0 6px;
+  font-size: clamp(32px, 5vw, 44px);
+  letter-spacing: -1.2px;
+  font-weight: 600;
+}
+.legal-updated {
+  margin: 0 0 34px;
+  color: var(--muted);
+  font-size: 14px;
+}
+.legal h2 {
+  margin: 40px 0 14px;
+  font-size: 21px;
+  letter-spacing: -0.4px;
+}
+.legal h3 {
+  margin: 24px 0 8px;
+  font-size: 16px;
+  font-weight: 600;
+}
+.legal p,
+.legal li {
+  color: #c4c2be;
+  font-size: 15.5px;
+}
+.legal ul {
+  padding-left: 20px;
+}
+.legal li {
+  margin-bottom: 8px;
+}
+.legal a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.legal code {
+  background: #191919;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 1px 6px;
+  font-size: 13px;
+}
+
+.legal-summary {
+  background: var(--card);
+  border: 1px solid #212121;
+  border-radius: var(--radius);
+  padding: 22px 26px 6px;
+  margin-bottom: 12px;
+}
+.legal-summary h2 {
+  margin-top: 4px;
+  font-size: 17px;
+}
+
+.legal-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 14px 0 6px;
+  font-size: 14.5px;
+  display: block;
+  overflow-x: auto;
+}
+.legal-table th,
+.legal-table td {
+  text-align: left;
+  padding: 10px 14px 10px 0;
+  border-bottom: 1px solid #1e1e1e;
+  vertical-align: top;
+}
+.legal-table th {
+  color: var(--text);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.legal-table td {
+  color: var(--muted);
+}
+
+.legal-note {
+  display: inline-block;
+  color: #8a8886;
+  font-size: 13px;
+  font-style: italic;
+}
+.legal-disclaimer {
+  margin-top: 46px;
+  padding-top: 20px;
+  border-top: 1px solid #1e1e1e;
+  color: var(--muted) !important;
+  font-size: 14px !important;
+}
+
+/* ---------- first-visit disclosure ---------- */
+
+.disclosure {
+  position: fixed;
+  left: 16px;
+  right: 16px;
+  bottom: 16px;
+  z-index: 60;
+  margin-inline: auto;
+  max-width: 620px;
+  background: var(--panel);
+  border: 1px solid #2c2c2c;
+  border-radius: 16px;
+  padding: 20px 22px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+  animation: disclosure-in 0.3s cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+@keyframes disclosure-in {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.disclosure h2 {
+  margin: 0 0 8px;
+  font-size: 16px;
+  font-weight: 600;
+}
+.disclosure p {
+  margin: 0 0 14px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.55;
+}
+.disclosure a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.disclosure-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+@media (prefers-reduced-motion: reduce) {
+  .disclosure { animation: none; }
+}
+
+/* ---------- responsive: three real layouts ---------- */
+
+@media (max-width: 720px) {
+  /* the nav row cannot hold four links at 375px — keep the two that matter
+     for a first-time visitor and let the footer carry the rest */
+  .nav nav {
+    gap: 16px;
+    font-size: 13px;
+  }
+  .nav nav a[href="#features"],
+  .nav nav a[href="privacy.html"] {
+    display: none;
+  }
+  .nav-gh {
+    padding: 6px 12px;
+  }
+  .wrap {
+    padding-inline: 18px;
+  }
+  .cta-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .cta-row .btn {
+    width: 100%;
+  }
+  .waitlist {
+    max-width: 100%;
+  }
+  .waitlist input,
+  .waitlist .btn {
+    width: 100%;
+    min-width: 0;
+  }
+  .disclosure {
+    left: 10px;
+    right: 10px;
+    bottom: calc(10px + env(safe-area-inset-bottom));
+    padding: 18px;
+  }
+  .disclosure-actions .btn {
+    flex: 1;
+  }
+  footer {
+    flex-direction: column;
+    gap: 16px;
+  }
+  .footer-links {
+    flex-wrap: wrap;
+    gap: 14px;
+  }
+  .legal {
+    padding-block: 40px 70px;
+  }
+  .legal-summary {
+    padding: 18px 18px 4px;
+  }
+}
+
+/* tablet: the hero stacks but stays generous, cards go two-up */
+@media (min-width: 721px) and (max-width: 1023px) {
+  .hero {
+    grid-template-columns: 1fr;
+    gap: 42px;
+  }
+  .hero-copy {
+    max-width: 640px;
+  }
+  .grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .strip {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* wide desktop: stop the text from sprawling */
+@media (min-width: 1400px) {
+  .wrap {
+    max-width: 1180px;
+  }
+}

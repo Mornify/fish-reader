@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { isDesktop, webApiKey, webClearKey, webValidateAndStoreKey } from "./platform";
 
 /** Backend sentinel meaning "no Fish Audio account connected yet". */
 export const NO_API_KEY = "NO_API_KEY";
@@ -9,13 +10,13 @@ export function isMissingKeyError(message: unknown): boolean {
   return String(message ?? "").includes(NO_API_KEY);
 }
 
-const inTauri = () => "__TAURI_INTERNALS__" in window;
+const inTauri = isDesktop;
 
 export async function hasApiKey(): Promise<boolean> {
   if (!inTauri()) {
-    // browser preview only (never runs in the packaged app): lets the design
-    // of the first-run flow be inspected without wiping the real key
-    return localStorage.getItem("preview-onboarding") !== "1";
+    // dev affordance: force the first-run flow without clearing a real key
+    if (localStorage.getItem("preview-onboarding") === "1") return false;
+    return webApiKey().length > 0;
   }
   try {
     return await invoke<boolean>("api_key_status");
@@ -27,16 +28,18 @@ export async function hasApiKey(): Promise<boolean> {
 /** Validates against the live API before storing. Throws a friendly message. */
 export async function saveApiKey(key: string): Promise<void> {
   if (!inTauri()) {
-    if (!key.trim().startsWith("good")) {
-      throw new Error("That key wasn't accepted. Make sure you copied the whole key.");
-    }
+    await webValidateAndStoreKey(key);
+    localStorage.removeItem("preview-onboarding");
     return;
   }
   await invoke("set_api_key", { key });
 }
 
 export async function disconnectAccount(): Promise<void> {
-  if (!inTauri()) return;
+  if (!inTauri()) {
+    webClearKey();
+    return;
+  }
   try {
     await invoke("clear_api_key");
   } catch {

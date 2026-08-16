@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { isDesktop, webDeleteBook, webListBooks, webSaveBook } from "./platform";
 import { Book } from "../types";
 import { splitSentences } from "./sentences";
 
@@ -76,11 +77,13 @@ export function wordsIn(text: string): number {
 }
 
 export async function saveBook(book: Book): Promise<void> {
-  await invoke("save_book", { id: book.id, data: JSON.stringify(book) });
+  const data = JSON.stringify(book);
+  if (!isDesktop()) return webSaveBook(book.id, data);
+  await invoke("save_book", { id: book.id, data });
 }
 
 export async function loadBooks(): Promise<Book[]> {
-  const raw = await invoke<unknown[]>("list_books");
+  const raw = isDesktop() ? await invoke<unknown[]>("list_books") : await webListBooks();
   const books = raw as Book[];
   return books
     .filter((b) => b && typeof b.id === "string" && typeof b.text === "string")
@@ -88,5 +91,6 @@ export async function loadBooks(): Promise<Book[]> {
 }
 
 export async function deleteBook(id: string): Promise<void> {
+  if (!isDesktop()) return webDeleteBook(id);
   await invoke("delete_book", { id });
 }

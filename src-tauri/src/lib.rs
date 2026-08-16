@@ -94,11 +94,16 @@ async fn set_api_key(state: tauri::State<'_, AppState>, key: String) -> Result<(
         return Err("Paste your Fish Audio API key to continue.".into());
     }
 
+    // NOTE: plain /model is a PUBLIC endpoint — it returns 200 even with no
+    // Authorization header at all, so validating against it accepts any
+    // garbage string. `self=true` scopes the request to the caller's own
+    // account and correctly answers 401 for a bad key (verified against the
+    // live API).
     let resp = state
         .http
         .get("https://api.fish.audio/model")
         .bearer_auth(&key)
-        .query(&[("page_size", "1")])
+        .query(&[("page_size", "1"), ("self", "true")])
         .send()
         .await
         .map_err(|_| "Couldn't reach Fish Audio. Check your internet connection.".to_string())?;

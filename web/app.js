@@ -62,8 +62,8 @@ fetch("https://api.github.com/repos/Mornify/fish-reader/releases/latest")
   .then((r) => (r.ok ? r.json() : Promise.reject()))
   .then((release) => {
     if (!release || !release.tag_name) return;
-    const meta = document.getElementById("release-meta");
-    if (meta) meta.textContent = release.tag_name + " · Apple Silicon · free";
+    const mac = document.getElementById("download");
+    if (mac && release.tag_name) mac.title = "Mac app " + release.tag_name + " · Apple Silicon";
   })
   .catch(() => {
     /* offline or rate-limited — the static label stays */
@@ -156,3 +156,51 @@ if (reduceMotion) {
 
   setTimeout(step, 700);
 }
+
+
+/* ------------------------------------------------------------------ *
+ * First-visit disclosure
+ *
+ * This is deliberately NOT a cookie consent banner: the site sets no
+ * cookies, loads no third-party scripts and measures nothing, so there is
+ * nothing to consent to. What people genuinely need to know is where their
+ * data lives and that narration sends text to Fish Audio — so that is what
+ * it says, once, and then never again.
+ *
+ * The single flag below is first-party, strictly necessary to honour the
+ * user's own "don't show this again" choice, and holds no personal data.
+ * ------------------------------------------------------------------ */
+(() => {
+  const KEY = "fr-disclosure-v1";
+  const el = document.getElementById("disclosure");
+  const ok = document.getElementById("disclosure-ok");
+  if (!el || !ok) return;
+
+  let seen = false;
+  try {
+    seen = localStorage.getItem(KEY) === "1";
+  } catch {
+    // storage blocked (private mode / strict settings) — showing the notice
+    // every visit is the correct fallback, never a broken page
+  }
+  if (seen) return;
+
+  el.hidden = false;
+  const previouslyFocused = document.activeElement;
+  ok.focus({ preventScroll: true });
+
+  const dismiss = () => {
+    try {
+      localStorage.setItem(KEY, "1");
+    } catch {
+      /* fine — it simply shows again next time */
+    }
+    el.hidden = true;
+    if (previouslyFocused instanceof HTMLElement) previouslyFocused.focus({ preventScroll: true });
+  };
+
+  ok.addEventListener("click", dismiss);
+  el.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") dismiss();
+  });
+})();

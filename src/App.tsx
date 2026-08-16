@@ -12,6 +12,7 @@ import { CompactWindow, MiniPlayer } from "./components/MiniPlayer";
 import { enterMiniWindow, exitMiniWindow } from "./lib/windowMode";
 import { AvailableUpdate, checkForUpdate } from "./lib/updater";
 import { hasApiKey, isMissingKeyError } from "./lib/account";
+import { isDesktop } from "./lib/platform";
 import { Onboarding } from "./components/Onboarding";
 import { Settings } from "./components/Settings";
 import type { AppView } from "./components/Sidebar";
@@ -105,6 +106,7 @@ export default function App() {
 
       // merge favorites seeded from outside (fish.audio hearts import)
       try {
+        if (!isDesktop()) return;
         const raw = await invoke<string | null>("read_favorites_seed");
         if (raw) prefs.mergeFavorites(JSON.parse(raw) as SavedVoice[]);
       } catch {

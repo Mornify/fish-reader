@@ -1,4 +1,5 @@
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
+import { isDesktop, webListVoices, webTts } from "./platform";
 
 /** One voice from the Fish Audio catalog (subset of fields we use). */
 export interface Voice {
@@ -34,6 +35,7 @@ export interface VoiceQuery {
 export const DEFAULT_MODEL = "s2.1-pro-free";
 
 export function listVoices(q: VoiceQuery = {}): Promise<VoicePage> {
+  if (!isDesktop()) return webListVoices(q);
   return invoke<VoicePage>("list_voices", {
     title: q.title ?? null,
     tags: q.tags ?? null,
@@ -66,10 +68,12 @@ export async function ttsClip(
   voiceId: string,
   model: string = DEFAULT_MODEL,
 ): Promise<TtsClip> {
+  if (!isDesktop()) return webTts(text, voiceId, model);
   return invoke<TtsClip>("tts", { text, voiceId, model });
 }
 
 /** Turn a cache path into a URL the webview can actually play. */
 export function clipUrl(clip: TtsClip): string {
-  return convertFileSrc(clip.path);
+  // on the web the path is already a blob: URL the <audio> element can use
+  return isDesktop() ? convertFileSrc(clip.path) : clip.path;
 }

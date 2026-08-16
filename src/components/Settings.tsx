@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { isDesktop, webCacheInfo, webClearCache } from "../lib/platform";
 import { disconnectAccount } from "../lib/account";
 import { checkForUpdate } from "../lib/updater";
 import { session } from "../lib/session";
@@ -41,7 +42,7 @@ export function Settings({ onClose, onReconnect }: Props) {
 
   async function refreshCache() {
     try {
-      setCache(await invoke<CacheInfo>("cache_info"));
+      setCache(isDesktop() ? await invoke<CacheInfo>("cache_info") : await webCacheInfo());
       setCacheState("ready");
     } catch {
       setCache(null);
@@ -62,7 +63,8 @@ export function Settings({ onClose, onReconnect }: Props) {
     session.pause();
     setClearing(true);
     try {
-      await invoke("clear_cache");
+      if (isDesktop()) await invoke("clear_cache");
+      else await webClearCache();
       await refreshCache();
       setConfirmClear(false);
     } finally {

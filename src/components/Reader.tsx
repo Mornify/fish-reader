@@ -50,7 +50,12 @@ export function Reader({ book, onBack, onMiniWindow }: Props) {
   }, [activeBook.text, sentences]);
 
   const [voicesOpen, setVoicesOpen] = useState(false);
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  // On a desktop-sized screen the chapter list is a permanent part of the
+  // reading surface (the ElevenReader pattern), so it starts open. On phones
+  // and tablets it is a sheet the user summons, so it starts closed.
+  const [drawerOpen, setDrawerOpen] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches,
+  );
   const [toast, setToast] = useState("");
   const [readerSize, setReaderSize] = useState(prefs.readerSize());
   const [readerFont, setReaderFont] = useState(prefs.readerFont());
@@ -190,6 +195,26 @@ export function Reader({ book, onBack, onMiniWindow }: Props) {
         </button>
       </header>
 
+      <div className="reader-main">
+        <ReaderDrawer
+          open={drawerOpen}
+          onClose={() => setDrawerOpen(false)}
+          hasChapters={hasChapters}
+          chapterTitles={activeBook.chapterTitles}
+          chapterStarts={activeBook.chapterStarts}
+          sentences={sentences}
+          sentenceIdx={s.sentenceIdx}
+          bookmarks={bookmarks}
+          onJump={(i) => {
+            session.seekSentence(i);
+            scrollToCurrent("smooth");
+            // on phones the panel covers the text, so get out of the way
+            if (window.matchMedia("(max-width: 767px)").matches) setDrawerOpen(false);
+          }}
+          onRemoveBookmark={(i) =>
+            session.updateBook({ bookmarks: bookmarks.filter((b) => b !== i) })
+          }
+        />
       <div className="reader-body">
         {paragraphs.length > 0 && (
           <article
@@ -211,24 +236,16 @@ export function Reader({ book, onBack, onMiniWindow }: Props) {
           </article>
         )}
       </div>
+      </div>
 
-      <ReaderDrawer
-        open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
-        hasChapters={hasChapters}
-        chapterTitles={activeBook.chapterTitles}
-        chapterStarts={activeBook.chapterStarts}
-        sentences={sentences}
-        sentenceIdx={s.sentenceIdx}
-        bookmarks={bookmarks}
-        onJump={(i) => {
-          session.seekSentence(i);
-          scrollToCurrent("smooth");
-        }}
-        onRemoveBookmark={(i) =>
-          session.updateBook({ bookmarks: bookmarks.filter((b) => b !== i) })
-        }
-      />
+
+      {drawerOpen && (
+        <button
+          className="drawer-scrim"
+          onClick={() => setDrawerOpen(false)}
+          aria-label="Close chapters"
+        />
+      )}
 
       {toast && <div className="toast">{toast}</div>}
       {s.error && (

@@ -24,6 +24,14 @@ body,
   height: 100%;
 }
 
+/* Panels park off-screen via translateX/Y while closed. Without this they
+   extend the scrollable area and the whole app can be dragged sideways —
+   very visible on a phone. The app scrolls inside .page/.reader-body, never
+   at the document level. */
+html {
+  overflow: hidden;
+}
+
 body {
   margin: 0;
   background: var(--bg);
@@ -2264,4 +2272,389 @@ svg {
   color: #ff8a80;
   font-size: 12px;
   max-width: 220px;
+}
+
+/* ==================================================================
+   RESPONSIVE — three real layouts, not one stretched one.
+   Breakpoints are chosen from CONTENT, not device names:
+     < 768px   one hand, one column, panels become sheets
+     768–1023  two panes fit, but touch-sized
+     >= 1024   persistent chapter sidebar + centred reading measure
+   The reading measure (how many characters per line) is the single
+   most important variable in a reading app — it is capped at ~68ch
+   everywhere so text never runs the full width of a wide monitor.
+   ================================================================== */
+
+.reader-main {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  position: relative;
+}
+
+.reader-body {
+  flex: 1;
+  overflow-y: auto;
+  min-width: 0;
+  scroll-padding-block: 25vh;
+}
+
+.reader-column {
+  max-width: 68ch; /* measure, not pixels — the thing that makes prose readable */
+  margin-inline: auto;
+  padding: 32px clamp(20px, 5vw, 40px) 40px;
+}
+
+.drawer-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 44;
+  border: none;
+}
+
+/* ---------- DESKTOP: persistent sidebar, like a real reader ---------- */
+@media (min-width: 1024px) {
+  .reader-drawer {
+    position: static;
+    transform: none;
+    width: 288px;
+    flex-shrink: 0;
+    height: auto;
+    border-radius: 0;
+    border-top: none;
+    border-bottom: none;
+    border-left: none;
+    border-right: 1px solid #1f1f1f;
+    box-shadow: none;
+    background: #0d0d0d;
+    visibility: visible;
+    pointer-events: auto;
+    padding-top: 18px;
+  }
+  /* the toggle collapses it for distraction-free reading */
+  .reader-drawer:not(.open) {
+    display: none;
+  }
+  .drawer-scrim {
+    display: none;
+  }
+  .reader-drawer header .icon-button {
+    display: none; /* the header toggle owns this on desktop */
+  }
+}
+
+/* open the sidebar by default on a desktop-sized screen */
+@media (min-width: 1024px) {
+  .reader-drawer.default-open {
+    display: flex;
+  }
+}
+
+/* ---------- TABLET: overlay sheet from the left, touch sized ---------- */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .reader-drawer {
+    width: 320px;
+  }
+  .reader-column {
+    max-width: 62ch;
+    font-size: 19px;
+  }
+  .icon-btn,
+  .icon-button,
+  .round-btn {
+    min-width: 44px;
+    min-height: 44px; /* Apple's minimum comfortable touch target */
+  }
+  .sidebar {
+    width: 220px;
+  }
+}
+
+/* ---------- PHONE: one column, sheets from the bottom ---------- */
+@media (max-width: 767px) {
+  /* the app chrome sidebar becomes a bottom tab bar */
+  .shell {
+    flex-direction: column;
+  }
+  .sidebar {
+    width: 100%;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
+    border-right: none;
+    border-top: 1px solid #1d1d1d;
+    order: 2;
+  }
+  .sidebar-brand,
+  .sidebar-footer,
+  .sidebar-note {
+    display: none;
+  }
+  .sidebar nav {
+    flex-direction: row;
+    flex: 1;
+    gap: 4px;
+  }
+  .nav-item {
+    justify-content: center;
+    padding: 10px 8px;
+    font-size: 12px;
+  }
+  .upload-btn {
+    width: auto;
+    padding: 10px 12px;
+    white-space: nowrap;
+  }
+  .upload-btn span:not(.plus-circle) {
+    display: none;
+  }
+  .sidebar-settings {
+    margin-top: 0;
+    width: auto;
+  }
+
+  .main-col {
+    order: 1;
+    min-height: 0;
+  }
+  .titlebar-pad {
+    padding-top: max(14px, env(safe-area-inset-top));
+  }
+  .topbar {
+    padding-inline: 14px;
+    gap: 8px;
+  }
+  .search {
+    width: 100%;
+    margin-inline: 0;
+  }
+  .page {
+    padding: 4px 16px 120px;
+  }
+  .page-heading h1 {
+    font-size: 32px;
+  }
+
+  /* library rows stack: cover above the text reads better in one hand */
+  .book-row {
+    flex-direction: column-reverse;
+    align-items: stretch;
+    gap: 14px;
+  }
+  .book-cover {
+    width: 100%;
+    height: 168px;
+    border-radius: 12px;
+  }
+  .book-list {
+    gap: 30px;
+  }
+
+  /* reader */
+  .reader-head {
+    padding-inline: 10px;
+    gap: 8px;
+  }
+  .reader-title strong {
+    max-width: 42vw;
+    font-size: 14px;
+  }
+  .header-voice {
+    max-width: 40vw;
+  }
+  .header-voice strong {
+    display: none; /* keep just "Read by" + the orb; the name overflows */
+  }
+  .reader-column {
+    max-width: 100%;
+    font-size: 18px;
+    padding: 20px 20px 30px;
+  }
+  .reader-column.reader-size-3 {
+    font-size: 21px;
+  }
+
+  /* chapters/bookmarks becomes a bottom sheet */
+  .reader-drawer {
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    max-width: 100%;
+    height: 72vh;
+    border-radius: 18px 18px 0 0;
+    transform: translateY(100%);
+    padding-bottom: calc(16px + env(safe-area-inset-bottom));
+  }
+  .reader-drawer.open {
+    transform: translateY(0);
+  }
+
+  /* voices panel becomes a bottom sheet too */
+  .voices-panel {
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    max-width: 100%;
+    height: 80vh;
+    border-radius: 18px 18px 0 0;
+    transform: translateY(100%);
+    padding-bottom: calc(16px + env(safe-area-inset-bottom));
+  }
+  .voices-panel.open {
+    transform: translateY(0);
+  }
+
+  /* player: the essentials only, thumb-reachable */
+  .player-bar {
+    padding: 8px 12px calc(10px + env(safe-area-inset-bottom));
+  }
+  .player-row {
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+  }
+  .now-playing {
+    min-width: 0;
+  }
+  .transport {
+    gap: 12px;
+    grid-column: 1 / -1;
+    order: 2;
+    justify-content: space-between;
+    padding-top: 4px;
+  }
+  .bar-right {
+    order: 1;
+    gap: 4px;
+  }
+  /* these belong to a pointer, not a thumb */
+  .bar-right .volume-wrap,
+  .bar-right .reader-size-control,
+  .bar-right .icon-btn[title*="output device"],
+  .bar-right .icon-btn[title*="Mini player"],
+  .bar-right .icon-btn[title="Fullscreen"] {
+    display: none;
+  }
+  .mini-player {
+    left: 8px;
+    right: 8px;
+    bottom: calc(8px + env(safe-area-inset-bottom));
+  }
+  .mini-close {
+    display: none;
+  }
+
+  /* modals become full-height sheets */
+  .modal {
+    width: 100%;
+    max-width: 100%;
+    max-height: 92vh;
+    border-radius: 18px 18px 0 0;
+    align-self: flex-end;
+    padding-bottom: calc(22px + env(safe-area-inset-bottom));
+  }
+  .overlay {
+    align-items: flex-end;
+  }
+  .field-row {
+    flex-direction: column;
+  }
+  .settings-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .onboard-step h1 {
+    font-size: 26px;
+  }
+  .update-banner {
+    left: 8px;
+    right: 8px;
+    transform: none;
+    flex-wrap: wrap;
+  }
+}
+
+/* touch devices: no hover lift, bigger hit areas */
+@media (hover: none) {
+  .book-cover:hover,
+  .play-circle:hover {
+    transform: none;
+  }
+  .sentence:hover {
+    background: transparent;
+  }
+}
+
+/* very wide screens: keep the reading column honest */
+@media (min-width: 1600px) {
+  .reader-column {
+    max-width: 72ch;
+  }
+}
+
+/* ------------------------------------------------------------------
+   Touch ergonomics. Keyed on the POINTER, not the viewport width — a
+   1024px tablet is still a finger, and a small laptop window is still a
+   mouse. Apple's HIG minimum is 44pt; 40px is the floor here with 44 for
+   primary controls.
+   ------------------------------------------------------------------ */
+@media (pointer: coarse) {
+  .tabs button,
+  .mode-switch button,
+  .tag-chip,
+  .mini-select,
+  .text-button,
+  .search-clear {
+    min-height: 40px;
+    padding-block: 9px;
+  }
+  .reader-size-control button {
+    min-width: 40px;
+    min-height: 40px;
+  }
+  .reader-size-control {
+    padding: 4px;
+  }
+  .icon-btn,
+  .icon-button,
+  .round-btn,
+  .heart,
+  .orb,
+  .drawer-remove {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .orb {
+    width: 44px;
+    height: 44px;
+  }
+  .orb.small {
+    width: 24px;
+    height: 24px;
+    min-width: 24px;
+    min-height: 24px;
+  }
+  .button {
+    min-height: 44px;
+  }
+  .button.compact {
+    min-height: 40px;
+  }
+  /* a sentence is a tap target too — give it breathing room */
+  .sentence {
+    padding-block: 3px;
+  }
+  .drawer-row {
+    min-height: 48px;
+  }
+  .voice-row {
+    min-height: 56px;
+  }
 }

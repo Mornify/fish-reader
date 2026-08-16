@@ -6,7 +6,7 @@
     <title>Fish Reader — listen to any book, follow every word</title>
     <meta
       name="description"
-      content="A private macOS reader that turns any book, PDF, or article into an audiobook — and highlights every word as it's spoken."
+      content="Turn any book, PDF, or article into an audiobook in your browser — and follow every word as it's read. Works on phone, tablet and computer."
     />
     <meta property="og:title" content="Fish Reader" />
     <meta
@@ -17,7 +17,7 @@
     <link rel="icon" href="favicon.svg" />
     <!-- No third-party requests: a page that sells privacy shouldn't ship
          every visitor's IP to a font CDN. System fonts only. -->
-    <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="style.css?v=a6db7b69" />
   </head>
   <body>
     <header class="nav">
@@ -26,6 +26,7 @@
         <nav>
           <a href="#features">Features</a>
           <a href="#faq">FAQ</a>
+          <a href="privacy.html">Privacy</a>
           <a
             class="nav-gh"
             href="https://github.com/Mornify/fish-reader"
@@ -40,7 +41,7 @@
     <main id="top">
       <section class="hero wrap">
         <div class="hero-copy">
-          <p class="eyebrow">For macOS · Free · Private</p>
+          <p class="eyebrow">Web · iPhone · iPad · Mac · Free</p>
           <h1>Listen to any book.<br /><span class="accent">Follow every word.</span></h1>
           <p class="lede">
             Fish Reader turns books, PDFs, and articles into audiobooks in thousands of
@@ -49,12 +50,17 @@
           </p>
 
           <div class="cta-row">
-            <a class="btn primary" id="download" href="https://github.com/Mornify/fish-reader/releases/latest/download/Fish-Reader-macOS.zip">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 11l5 5 5-5M5 20h14"/></svg>
-              Download for macOS
+            <a class="btn primary" id="open-app" href="app/">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+              Start reading — free
             </a>
-            <span class="cta-meta" id="release-meta">Apple Silicon · free</span>
+            <a class="btn ghost" id="download" href="https://github.com/Mornify/fish-reader/releases/latest/download/Fish-Reader-macOS.zip">
+              Mac app
+            </a>
           </div>
+          <p class="cta-meta" id="release-meta">
+            Runs in your browser. Nothing to install.
+          </p>
 
           <form class="waitlist" id="waitlist">
             <label for="email" class="sr-only">Email address</label>
@@ -106,6 +112,7 @@
         <div><b>PDF</b><span>headers &amp; page numbers stripped</span></div>
         <div><b>DOCX</b><span>+ HTML, RTF, Markdown, TXT</span></div>
         <div><b>Paste</b><span>anything at all</span></div>
+        <div><b>Any device</b><span>phone, tablet, computer</span></div>
       </section>
 
       <section class="features wrap" id="features">
@@ -163,13 +170,11 @@
       <section class="steps wrap">
         <h2>Running in two minutes</h2>
         <ol>
-          <li><b>Download</b> and drag Fish Reader to Applications.</li>
-          <li><b>Connect</b> a free Fish Audio key — the app walks you through it.</li>
+          <li><b>Open the app</b> in your browser — nothing to install.</li>
+          <li><b>Connect</b> a free Fish Audio key; the app walks you through it.</li>
           <li><b>Import a book</b> and press play. That's the whole setup.</li>
         </ol>
-        <a class="btn primary" href="https://github.com/Mornify/fish-reader/releases/latest/download/Fish-Reader-macOS.zip">
-          Download for macOS
-        </a>
+        <a class="btn primary" href="app/">Start reading — free</a>
       </section>
 
       <section class="faq wrap" id="faq">
@@ -197,9 +202,20 @@
           </p>
         </details>
         <details>
-          <summary>Which Macs are supported?</summary>
+          <summary>Which devices work?</summary>
           <p>
-            Apple Silicon Macs (M1 and newer) on macOS 11 or later. The first time you open it, right-click the app and choose Open, then confirm — Fish Reader is signed but not yet notarized by Apple, so macOS asks once.
+            Any modern browser — iPhone, iPad, Android, Mac or Windows. There is also an
+            optional Mac app. On the Mac app's first launch, right-click it and choose
+            Open: it's signed, but not yet notarized by Apple, so macOS asks once.
+          </p>
+        </details>
+        <details>
+          <summary>Does my book get uploaded anywhere?</summary>
+          <p>
+            Your library, reading position and generated audio stay on your device. The
+            one thing that leaves is the passage being narrated: it's sent to Fish Audio
+            to be turned into speech, because that's where the voices run. Full detail in
+            the <a href="privacy.html">privacy policy</a>.
           </p>
         </details>
         <details>
@@ -224,6 +240,8 @@
           rel="noopener"
           >Releases</a
         >
+        <a href="privacy.html">Privacy</a>
+        <a href="terms.html">Terms</a>
         <a
           href="https://github.com/Mornify/fish-reader/issues"
           target="_blank"
@@ -233,6 +251,23 @@
       </p>
     </footer>
 
-    <script src="app.js"></script>
+    <!-- First-visit disclosure. Not a cookie banner: this site sets no cookies
+         and runs no analytics. It exists so nobody is surprised that narration
+         sends text to Fish Audio. -->
+    <aside class="disclosure" id="disclosure" role="region" aria-label="How Fish Reader handles your data" hidden>
+      <h2>Before you start</h2>
+      <p>
+        Fish Reader keeps your books, progress and audio <strong>on your device</strong> —
+        no accounts, no analytics, no tracking cookies. The text you press play on is sent
+        to Fish Audio to be spoken. See the
+        <a href="privacy.html">privacy policy</a> and <a href="terms.html">terms</a>.
+      </p>
+      <div class="disclosure-actions">
+        <button class="btn primary" id="disclosure-ok" type="button">Got it</button>
+        <a class="btn ghost" href="privacy.html">Read the details</a>
+      </div>
+    </aside>
+
+    <script src="app.js?v=957cbed4"></script>
   </body>
 </html>
