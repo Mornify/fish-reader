@@ -19,7 +19,8 @@ const WEB_CSP = [
   "default-src 'self'",
   "base-uri 'self'",
   "object-src 'none'",
-  "frame-ancestors 'none'",
+  // frame-ancestors is ignored in a meta tag (header-only); set as a real
+  // header by the host instead — leaving it here only spams the console
   "form-action 'none'",
   "script-src 'self'",
   // React sets style attributes (progress fills, drawer transforms) — those are
