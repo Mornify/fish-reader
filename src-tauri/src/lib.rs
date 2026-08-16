@@ -39,6 +39,31 @@ fn read_stored_key(config_path: &PathBuf) -> String {
         .unwrap_or_default()
 }
 
+/// Write the key with owner-only permissions from the moment of creation —
+/// never briefly world-readable.
+fn write_key_file(path: &std::path::Path, key: &str) -> Result<(), String> {
+    let body = serde_json::json!({ "fish_api_key": key });
+    let contents = serde_json::to_string_pretty(&body).unwrap_or_default();
+
+    #[cfg(unix)]
+    {
+        use std::io::Write;
+        use std::os::unix::fs::OpenOptionsExt;
+        let mut file = fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .mode(0o600)
+            .open(path)
+            .map_err(|e| format!("Couldn't save your key: {e}"))?;
+        file.write_all(contents.as_bytes())
+            .map_err(|e| format!("Couldn't save your key: {e}"))?;
+    }
+    #[cfg(not(unix))]
+    fs::write(path, contents).map_err(|e| format!("Couldn't save your key: {e}"))?;
+    Ok(())
+}
+
 impl AppState {
     fn key(&self) -> Result<String, String> {
         let key = self.api_key.lock().map_err(|_| NO_KEY.to_string())?.clone();
@@ -50,29 +75,7 @@ impl AppState {
     }
 
     fn persist_key(&self, key: &str) -> Result<(), String> {
-        let body = serde_json::json!({ "fish_api_key": key });
-        let contents = serde_json::to_string_pretty(&body).unwrap_or_default();
-
-        // create with owner-only permissions from the start — never briefly
-        // world-readable
-        #[cfg(unix)]
-        {
-            use std::io::Write;
-            use std::os::unix::fs::OpenOptionsExt;
-            let mut file = fs::OpenOptions::new()
-                .write(true)
-                .create(true)
-                .truncate(true)
-                .mode(0o600)
-                .open(&self.config_path)
-                .map_err(|e| format!("Couldn't save your key: {e}"))?;
-            file.write_all(contents.as_bytes())
-                .map_err(|e| format!("Couldn't save your key: {e}"))?;
-        }
-        #[cfg(not(unix))]
-        fs::write(&self.config_path, contents)
-            .map_err(|e| format!("Couldn't save your key: {e}"))?;
-        Ok(())
+        write_key_file(&self.config_path, key)
     }
 }
 
@@ -374,9 +377,13 @@ struct CacheInfo {
 /// Size of the generated-audio cache, for the Settings screen.
 #[tauri::command]
 fn cache_info(state: tauri::State<'_, AppState>) -> CacheInfo {
+    scan_cache(&state.cache_dir)
+}
+
+fn scan_cache(dir: &std::path::Path) -> CacheInfo {
     let mut bytes = 0u64;
     let mut files = 0u64;
-    if let Ok(entries) = fs::read_dir(&state.cache_dir) {
+    if let Ok(entries) = fs::read_dir(dir) {
         for entry in entries.flatten() {
             if let Ok(meta) = entry.metadata() {
                 if meta.is_file() {
@@ -396,7 +403,13 @@ fn cache_info(state: tauri::State<'_, AppState>) -> CacheInfo {
 /// audio is simply regenerated (and re-cached) next time it's played.
 #[tauri::command]
 fn clear_cache(state: tauri::State<'_, AppState>) -> Result<(), String> {
-    let entries = fs::read_dir(&state.cache_dir).map_err(|e| e.to_string())?;
+    purge_files(&state.cache_dir)
+}
+
+/// Delete files directly inside `dir` only — never recurses, so it cannot
+/// touch books or config even if the path were somehow wrong.
+fn purge_files(dir: &std::path::Path) -> Result<(), String> {
+    let entries = fs::read_dir(dir).map_err(|e| e.to_string())?;
     for entry in entries.flatten() {
         if entry.path().is_file() {
             let _ = fs::remove_file(entry.path());
@@ -431,53 +444,76 @@ fn books_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     Ok(dir)
 }
 
-/// Persist one book (JSON blob owned by the frontend).
-#[tauri::command]
-fn save_book(app: tauri::AppHandle, id: String, data: String) -> Result<(), String> {
-    let safe: String = id
-        .chars()
+/// Strip anything that could escape the books directory or collide.
+fn sanitize_id(id: &str) -> String {
+    id.chars()
         .filter(|c| c.is_ascii_alphanumeric() || *c == '-')
-        .collect();
-    if safe.is_empty() {
-        return Err("Invalid book id".into());
-    }
-    // write-then-rename: a crash or full disk mid-save can never truncate an
-    // existing book into an unreadable file (progress autosaves are frequent)
-    let dir = books_dir(&app)?;
+        .collect()
+}
+
+/// write-then-rename: a crash or full disk mid-save can never truncate an
+/// existing book into an unreadable file (progress autosaves are frequent).
+fn write_book_atomic(dir: &std::path::Path, safe: &str, data: &str) -> Result<(), String> {
     let path = dir.join(format!("{safe}.json"));
     let tmp = dir.join(format!("{safe}.json.part"));
     fs::write(&tmp, data).map_err(|e| e.to_string())?;
     fs::rename(&tmp, &path).map_err(|e| e.to_string())
 }
 
-#[tauri::command]
-fn list_books(app: tauri::AppHandle) -> Result<Vec<serde_json::Value>, String> {
+/// Every readable book in the directory. Unreadable or partial files are
+/// skipped rather than failing the whole library load.
+fn read_books_from(dir: &std::path::Path) -> Vec<serde_json::Value> {
     let mut out = Vec::new();
-    for entry in fs::read_dir(books_dir(&app)?).map_err(|e| e.to_string())? {
-        let entry = entry.map_err(|e| e.to_string())?;
+    let Ok(entries) = fs::read_dir(dir) else {
+        return out;
+    };
+    for entry in entries.flatten() {
+        // note: a leftover ".json.part" has extension "part" and is skipped
         if entry.path().extension().and_then(|e| e.to_str()) != Some("json") {
             continue;
         }
         if let Ok(text) = fs::read_to_string(entry.path()) {
-            if let Ok(v) = serde_json::from_str(&text) {
-                out.push(v);
+            if let Ok(value) = serde_json::from_str(&text) {
+                out.push(value);
             }
         }
     }
-    Ok(out)
+    out
+}
+
+fn remove_book_from(dir: &std::path::Path, safe: &str) -> Result<(), String> {
+    let path = dir.join(format!("{safe}.json"));
+    if path.exists() {
+        fs::remove_file(path).map_err(|e| e.to_string())?;
+    }
+    // clean up an interrupted save so it can't linger forever
+    let tmp = dir.join(format!("{safe}.json.part"));
+    let _ = fs::remove_file(tmp);
+    Ok(())
+}
+
+/// Persist one book (JSON blob owned by the frontend).
+#[tauri::command]
+fn save_book(app: tauri::AppHandle, id: String, data: String) -> Result<(), String> {
+    let safe = sanitize_id(&id);
+    if safe.is_empty() {
+        return Err("Invalid book id".into());
+    }
+    write_book_atomic(&books_dir(&app)?, &safe, &data)
+}
+
+#[tauri::command]
+fn list_books(app: tauri::AppHandle) -> Result<Vec<serde_json::Value>, String> {
+    Ok(read_books_from(&books_dir(&app)?))
 }
 
 #[tauri::command]
 fn delete_book(app: tauri::AppHandle, id: String) -> Result<(), String> {
-    let safe: String = id
-        .chars()
-        .filter(|c| c.is_ascii_alphanumeric() || *c == '-')
-        .collect();
-    let path = books_dir(&app)?.join(format!("{safe}.json"));
-    if path.exists() {
-        fs::remove_file(path).map_err(|e| e.to_string())?;
+    let safe = sanitize_id(&id);
+    if safe.is_empty() {
+        return Err("Invalid book id".into());
     }
-    Ok(())
+    remove_book_from(&books_dir(&app)?, &safe)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -543,4 +579,143 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    /// Unique scratch directory per test — no external crate needed.
+    fn scratch(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("fish-reader-test-{name}"));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn ids_cannot_escape_the_books_directory() {
+        assert_eq!(sanitize_id("../../etc/passwd"), "etcpasswd");
+        assert_eq!(sanitize_id("a/../b"), "ab");
+        assert_eq!(sanitize_id("m9k2p-x7f3a1"), "m9k2p-x7f3a1");
+        assert_eq!(sanitize_id("...."), "");
+        assert_eq!(sanitize_id("/"), "");
+    }
+
+    #[test]
+    fn saving_a_book_is_atomic_and_leaves_no_partial_file() {
+        let dir = scratch("atomic");
+        write_book_atomic(&dir, "book-1", r#"{"id":"book-1","title":"A"}"#).unwrap();
+
+        let saved = dir.join("book-1.json");
+        assert!(saved.exists(), "book should exist after save");
+        assert!(!dir.join("book-1.json.part").exists(), "no .part must remain");
+
+        // overwriting must not destroy the previous file if it succeeds
+        write_book_atomic(&dir, "book-1", r#"{"id":"book-1","title":"B"}"#).unwrap();
+        assert!(fs::read_to_string(&saved).unwrap().contains("\"B\""));
+    }
+
+    #[test]
+    fn an_interrupted_save_never_hides_the_real_book() {
+        let dir = scratch("interrupted");
+        write_book_atomic(&dir, "book-1", r#"{"title":"real"}"#).unwrap();
+        // simulate a crash mid-write: a stray .part file left behind
+        fs::write(dir.join("book-1.json.part"), "{tru").unwrap();
+
+        let books = read_books_from(&dir);
+        assert_eq!(books.len(), 1, "the .part file must not be loaded");
+        assert_eq!(books[0]["title"], "real");
+    }
+
+    #[test]
+    fn corrupt_books_are_skipped_not_fatal() {
+        let dir = scratch("corrupt");
+        write_book_atomic(&dir, "good", r#"{"title":"ok"}"#).unwrap();
+        fs::write(dir.join("bad.json"), "{ this is not json").unwrap();
+
+        let books = read_books_from(&dir);
+        assert_eq!(books.len(), 1, "one bad file must not lose the library");
+        assert_eq!(books[0]["title"], "ok");
+    }
+
+    #[test]
+    fn deleting_a_book_removes_it_and_any_partial() {
+        let dir = scratch("delete");
+        write_book_atomic(&dir, "book-1", r#"{"title":"x"}"#).unwrap();
+        fs::write(dir.join("book-1.json.part"), "partial").unwrap();
+
+        remove_book_from(&dir, "book-1").unwrap();
+        assert!(!dir.join("book-1.json").exists());
+        assert!(!dir.join("book-1.json.part").exists());
+        // deleting something already gone is not an error
+        remove_book_from(&dir, "book-1").unwrap();
+    }
+
+    #[test]
+    fn the_api_key_round_trips_and_is_owner_only() {
+        let dir = scratch("key");
+        let config = dir.join("config.json");
+
+        assert_eq!(read_stored_key(&config), "", "missing config yields no key");
+
+        write_key_file(&config, "sk-test-1234").unwrap();
+        assert_eq!(read_stored_key(&config), "sk-test-1234");
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = fs::metadata(&config).unwrap().permissions().mode() & 0o777;
+            assert_eq!(mode, 0o600, "key file must not be readable by others");
+        }
+
+        // a corrupt config must not panic or return garbage
+        fs::write(&config, "not json at all").unwrap();
+        assert_eq!(read_stored_key(&config), "");
+
+        // a config without the field must not panic
+        fs::write(&config, r#"{"something_else":true}"#).unwrap();
+        assert_eq!(read_stored_key(&config), "");
+    }
+
+    #[test]
+    fn cache_reporting_counts_clips_and_clearing_empties_it() {
+        let dir = scratch("cache");
+        fs::write(dir.join("a.mp3"), vec![0u8; 1000]).unwrap();
+        fs::write(dir.join("b.mp3"), vec![0u8; 500]).unwrap();
+        // sidecar alignment files count toward size but are not "clips"
+        fs::write(dir.join("a.align.json"), vec![0u8; 100]).unwrap();
+
+        let info = scan_cache(&dir);
+        assert_eq!(info.files, 2, "only mp3s are counted as clips");
+        assert_eq!(info.bytes, 1600, "all files count toward size");
+
+        purge_files(&dir).unwrap();
+        let empty = scan_cache(&dir);
+        assert_eq!(empty.files, 0);
+        assert_eq!(empty.bytes, 0);
+    }
+
+    #[test]
+    fn clearing_a_missing_cache_is_an_error_not_a_panic() {
+        let missing = std::env::temp_dir().join("fish-reader-test-does-not-exist");
+        let _ = fs::remove_dir_all(&missing);
+        assert!(purge_files(&missing).is_err());
+        // and reporting on it is simply empty
+        assert_eq!(scan_cache(&missing).files, 0);
+    }
+
+    #[test]
+    fn purge_does_not_recurse_into_subdirectories() {
+        let dir = scratch("purge-scope");
+        let nested = dir.join("books");
+        fs::create_dir_all(&nested).unwrap();
+        fs::write(nested.join("important.json"), "keep me").unwrap();
+        fs::write(dir.join("clip.mp3"), "audio").unwrap();
+
+        purge_files(&dir).unwrap();
+        assert!(!dir.join("clip.mp3").exists(), "clips are cleared");
+        assert!(nested.join("important.json").exists(), "nested files survive");
+    }
 }

@@ -36,9 +36,30 @@ TAURI_SIGNING_PRIVATE_KEY_PASSWORD="" \
 npm run tauri build
 
 BUNDLE="src-tauri/target/release/bundle/macos"
+APP="$BUNDLE/Fish Reader.app"
 ARCHIVE_SRC="$BUNDLE/Fish Reader.app.tar.gz"
 SIG_SRC="$ARCHIVE_SRC.sig"
 [[ -f "$ARCHIVE_SRC" && -f "$SIG_SRC" ]] || { echo "updater artifacts missing — is createUpdaterArtifacts on?"; exit 1; }
+
+# Tauri leaves a "linker-signed" ad-hoc signature that FAILS codesign
+# verification. macOS then reports a downloaded copy as "damaged", which
+# right-click → Open cannot bypass. A proper ad-hoc re-sign makes the
+# signature valid, so unnotarized downloads get the normal (bypassable)
+# "unidentified developer" prompt instead.
+echo "▸ re-signing the app bundle"
+codesign --force --deep --sign - "$APP"
+codesign --verify --deep --strict "$APP" || { echo "signature still invalid — aborting"; exit 1; }
+echo "  signature verified"
+
+# The tarball Tauri built contains the OLD signature, so rebuild it from the
+# re-signed app and re-sign it for the updater.
+echo "▸ rebuilding + signing the updater archive"
+rm -f "$ARCHIVE_SRC" "$SIG_SRC"
+tar -czf "$ARCHIVE_SRC" -C "$BUNDLE" "Fish Reader.app"
+TAURI_SIGNING_PRIVATE_KEY="$(cat "$KEY_PATH")" \
+TAURI_SIGNING_PRIVATE_KEY_PASSWORD="" \
+npm run tauri signer sign -- "$ARCHIVE_SRC" >/dev/null
+[[ -f "$SIG_SRC" ]] || { echo "updater signature missing — aborting"; exit 1; }
 
 ASSET="Fish-Reader_${VERSION}_aarch64.app.tar.gz"
 cp "$ARCHIVE_SRC" "/tmp/$ASSET"
@@ -48,7 +69,7 @@ cp "$ARCHIVE_SRC" "/tmp/$ASSET"
 # /releases/latest/download/Fish-Reader-macOS.zip
 echo "▸ packaging Fish-Reader-macOS.zip"
 rm -f "/tmp/Fish-Reader-macOS.zip"
-ditto -c -k --keepParent "$BUNDLE/Fish Reader.app" "/tmp/Fish-Reader-macOS.zip"
+ditto -c -k --keepParent "$APP" "/tmp/Fish-Reader-macOS.zip"
 
 echo "▸ writing latest.json"
 SIGNATURE="$(cat "$SIG_SRC")" ASSET="$ASSET" VERSION="$VERSION" node -e "

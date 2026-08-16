@@ -37,4 +37,4 @@ jobs:
       # tauri's build script expects the frontend bundle to exist
       - run: npm run build
       - name: Check Rust backend
-        run: cargo check --manifest-path src-tauri/Cargo.toml
+        run: cargo test --manifest-path src-tauri/Cargo.toml
