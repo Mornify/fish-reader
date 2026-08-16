@@ -2,7 +2,7 @@
  * Local narration relay for development.
  *
  * This deliberately runs THE SAME handler that ships to production
- * (`api/[...path].js`) rather than a re-implementation, so that testing against
+ * (`api/relay.js`) rather than a re-implementation, so that testing against
  * localhost actually tests the code that will serve real users. A stand-in that
  * merely behaves similarly is how relay bugs reach production unnoticed.
  *
@@ -16,7 +16,7 @@ import path from "node:path";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const { default: handler } = await import(
-  path.join(here, "..", "api", "[...path].js")
+  path.join(here, "..", "api", "relay.js")
 );
 
 const PORT = 8787;

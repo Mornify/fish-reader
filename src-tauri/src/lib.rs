@@ -39,6 +39,17 @@ fn read_stored_key(config_path: &PathBuf) -> String {
         .unwrap_or_default()
 }
 
+/// The pre-0.2.1 key lived in `app-data/.env`. Once `config.json` holds a key
+/// that file is a redundant second copy of a credential the user cannot see —
+/// and it keeps the ORIGINAL key even after they rotate to a new one in
+/// Settings. `config.json` is authoritative, so drop it whenever a stored key
+/// exists, not only on the one launch where a migration happens to run.
+fn drop_redundant_legacy_env(legacy_env: &std::path::Path, stored_key_present: bool) {
+    if stored_key_present && legacy_env.exists() {
+        let _ = fs::remove_file(legacy_env);
+    }
+}
+
 /// Write the key with owner-only permissions from the moment of creation —
 /// never briefly world-readable.
 fn write_key_file(path: &std::path::Path, key: &str) -> Result<(), String> {
@@ -564,6 +575,9 @@ pub fn run() {
                 migrated = !api_key.is_empty();
             }
 
+            // read before the key moves into the Mutex below
+            let had_stored_key = !api_key.is_empty();
+
             app.manage(AppState {
                 api_key: Mutex::new(api_key),
                 // without timeouts a stalled request hangs playback forever
@@ -582,9 +596,11 @@ pub fn run() {
                 let state = app.state::<AppState>();
                 if let Ok(key) = state.key() {
                     if state.persist_key(&key).is_ok() {
-                        let _ = fs::remove_file(&legacy_env);
+                        drop_redundant_legacy_env(&legacy_env, true);
                     }
                 }
+            } else {
+                drop_redundant_legacy_env(&legacy_env, had_stored_key);
             }
             Ok(())
         })
@@ -617,6 +633,39 @@ mod tests {
         fs::create_dir_all(&dir).unwrap();
         dir
     }
+
+    /// A pre-0.2.1 install left an app-data/.env holding the key. The cleanup
+    /// used to run ONLY when a migration happened, so an upgrader whose
+    /// config.json already had a key kept that file — and its now-stale key —
+    /// on disk forever, invisible to them.
+    #[test]
+    fn legacy_env_is_dropped_once_a_key_is_stored() {
+        let dir = scratch("legacy-env-drop");
+        let legacy = dir.join(".env");
+        fs::write(&legacy, "FISH_API_KEY=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
+
+        drop_redundant_legacy_env(&legacy, true);
+        assert!(!legacy.exists(), "redundant legacy .env must be removed");
+    }
+
+    /// But it is the only copy when nothing is stored yet — deleting it there
+    /// would throw away the user's key before it was ever migrated.
+    #[test]
+    fn legacy_env_is_kept_when_no_key_is_stored() {
+        let dir = scratch("legacy-env-keep");
+        let legacy = dir.join(".env");
+        fs::write(&legacy, "FISH_API_KEY=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
+
+        drop_redundant_legacy_env(&legacy, false);
+        assert!(legacy.exists(), "must not delete the only copy of the key");
+    }
+
+    #[test]
+    fn dropping_a_missing_legacy_env_is_harmless() {
+        let dir = scratch("legacy-env-absent");
+        drop_redundant_legacy_env(&dir.join(".env"), true);
+    }
+
 
     #[test]
     fn ids_cannot_escape_the_books_directory() {

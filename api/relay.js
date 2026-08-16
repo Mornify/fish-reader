@@ -42,8 +42,20 @@ const json = (status, body) =>
 
 export default async function handler(request) {
   const url = new URL(request.url);
-  // /api/v1/tts → /v1/tts
-  const path = url.pathname.replace(/^\/api/, "");
+
+  // Vercel's zero-config router only matches ONE path segment for a catch-all
+  // in a non-framework project: /api/model reached this function, but the two
+  // endpoints that actually matter — /api/v1/tts and
+  // /api/v1/tts/stream/with-timestamp — returned the platform's NOT_FOUND page
+  // without ever running this code, so narration was impossible on the deployed
+  // site. vercel.json now rewrites every /api/* depth here and hands the real
+  // path over as ?path=. The pathname fallback keeps the local relay working,
+  // where no rewrite exists.
+  const params = new URLSearchParams(url.search);
+  const routed = params.get("path");
+  params.delete("path");
+  const path = routed ?? url.pathname.replace(/^\/api/, "");
+  const search = params.toString() ? `?${params}` : "";
 
   if (request.method !== "GET" && request.method !== "POST") {
     return json(405, { error: "Method not allowed" });
@@ -69,7 +81,7 @@ export default async function handler(request) {
 
   let response;
   try {
-    response = await fetch(UPSTREAM + path + url.search, {
+    response = await fetch(UPSTREAM + path + search, {
       method: request.method,
       headers,
       body: request.method === "GET" ? undefined : request.body,

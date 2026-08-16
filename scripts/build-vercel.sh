@@ -2,7 +2,7 @@
 # Assemble the Vercel deployment:
 #   /        landing page  (web/)
 #   /app/    the reader    (dist-web/)
-#   /api/*   narration relay (api/[...path].js — deployed by Vercel, not here)
+#   /api/*   narration relay (api/relay.js — deployed by Vercel, not here)
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"

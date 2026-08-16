@@ -172,6 +172,44 @@ const sentences = await load("src/lib/sentences.ts");
   check("relay rejects a request with no key", (await hit("https://mornify.github.io", { auth: null })).status === 401);
 }
 
+
+/* --- the deployed relay must be reachable at every path depth ---
+ * Vercel's zero-config catch-all only matched ONE segment, so /api/model
+ * worked while /api/v1/tts returned the platform's NOT_FOUND page and
+ * narration was impossible on the deployed site. vercel.json rewrites all
+ * depths to one function and passes the real path as ?path=; the pathname
+ * fallback keeps the local relay working.  */
+{
+  const relay = await import(new URL("../api/relay.js", import.meta.url).href);
+  const hit = (url) =>
+    relay.default(
+      new Request(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: "x" }),
+    );
+  const status = async (url) => (await hit(url)).status;
+
+  // 401 = reached the handler and was rejected for a missing key, which is the
+  // proof that routing worked. 404 = rejected as an unlisted path.
+  check("relay routes a rewritten nested TTS path", (await status("https://x/api/relay?path=/v1/tts")) === 401);
+  check(
+    "relay routes the rewritten timestamped stream",
+    (await status("https://x/api/relay?path=/v1/tts/stream/with-timestamp")) === 401,
+  );
+  check("relay routes the rewritten voice catalogue", (await status("https://x/api/relay?path=/model")) === 401);
+  check("relay rejects a rewritten unlisted path", (await status("https://x/api/relay?path=/v1/admin")) === 404);
+  // local development has no rewrite, so the real pathname must still work
+  check("relay still routes a plain nested pathname", (await status("https://x/api/v1/tts")) === 401);
+  check("relay rejects a plain unlisted pathname", (await status("https://x/api/v1/admin")) === 404);
+
+  const config = JSON.parse(
+    (await import("node:fs")).readFileSync(new URL("../vercel.json", import.meta.url), "utf8"),
+  );
+  check(
+    "vercel.json keeps the rewrite that makes nested paths reachable",
+    config.rewrites?.some((r) => r.source === "/api/(.*)" && r.destination.startsWith("/api/relay")),
+    JSON.stringify(config.rewrites),
+  );
+}
+
 /* --- expressive narration: only tags real dialogue cues --- */
 {
   const tag = expressive.autoTag;
