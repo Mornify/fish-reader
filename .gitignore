@@ -1,11 +1,13 @@
-# secrets — never commit
-.env
 
 # deps & build output
-node_modules/
-dist/
-target/
-
 # generated audio cache (can be huge)
+# secrets — never commit
+.env
+.env.*.local
+.env.local
 audio-cache/
 dist-vercel
+dist-web/
+dist/
+node_modules/
+target/

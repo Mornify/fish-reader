@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { openSoundOutputSettings } from "../lib/windowMode";
 import {
   BoltIcon,
@@ -45,11 +45,46 @@ const RATES = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4];
 export function PlayerBar(p: Props) {
   // While dragging, `drag` holds the preview fraction; null = follow playback.
   const [drag, setDrag] = useState<number | null>(null);
+  // After releasing, keep showing where it was dropped until playback actually
+  // reports a position near there. Without this the thumb snaps back to the old
+  // position for up to half a second (the ticker interval) and then jumps
+  // forward again — the single jerkiest thing about the old scrubber.
+  const [pending, setPending] = useState<number | null>(null);
+  // True right after a discontinuity (scrub, ±15s skip, chapter jump) so the
+  // bar lands instantly instead of sliding across the track.
+  const [jumped, setJumped] = useState(false);
   const hitRef = useRef<HTMLDivElement>(null);
 
   const liveFrac = p.totalSec > 0 ? Math.min(1, p.elapsedSec / p.totalSec) : 0;
-  const frac = drag ?? liveFrac;
-  const shownElapsed = drag !== null ? drag * p.totalSec : p.elapsedSec;
+  const frac = drag ?? pending ?? liveFrac;
+  const shownElapsed = frac === liveFrac ? p.elapsedSec : frac * p.totalSec;
+
+  const previous = useRef(liveFrac);
+  useEffect(() => {
+    const delta = Math.abs(liveFrac - previous.current);
+    previous.current = liveFrac;
+    // one tick advances the bar by tick/total; anything much larger is a seek
+    if (delta <= 0.02) return;
+    setJumped(true);
+    const timer = setTimeout(() => setJumped(false), 80);
+    return () => clearTimeout(timer);
+  }, [liveFrac]);
+
+  useEffect(() => {
+    if (pending === null) return;
+    if (Math.abs(liveFrac - pending) < 0.02) {
+      setPending(null);
+      return;
+    }
+    // never let the preview stick if the seek is slow or fails
+    const timer = setTimeout(() => setPending(null), 1500);
+    return () => clearTimeout(timer);
+  }, [liveFrac, pending]);
+
+  // Animate only while playback is ticking forward on its own. The transition
+  // is matched to the 500ms ticker so the fill moves continuously instead of
+  // gliding for 400ms and then sitting still for 100ms.
+  const smooth = p.playing && drag === null && pending === null && !jumped;
 
   function fracFromEvent(e: React.PointerEvent): number {
     const r = hitRef.current!.getBoundingClientRect();
@@ -62,7 +97,7 @@ export function PlayerBar(p: Props) {
         <span className="time">{fmt(shownElapsed)}</span>
         <div
           ref={hitRef}
-          className={`track-hit ${drag !== null ? "dragging" : ""}`}
+          className={`track-hit ${drag !== null ? "dragging" : ""} ${smooth ? "smooth" : ""}`}
           onPointerDown={(e) => {
             e.currentTarget.setPointerCapture(e.pointerId);
             setDrag(fracFromEvent(e));
@@ -71,10 +106,12 @@ export function PlayerBar(p: Props) {
             if (drag !== null) setDrag(fracFromEvent(e));
           }}
           onPointerUp={(e) => {
-            if (drag !== null) {
-              p.onSeekSeconds(fracFromEvent(e) * p.totalSec);
-              setDrag(null);
-            }
+            if (drag === null) return;
+            const dropped = fracFromEvent(e);
+            // hold the dropped position on screen until playback catches up
+            setPending(dropped);
+            setDrag(null);
+            p.onSeekSeconds(dropped * p.totalSec);
           }}
           onPointerCancel={() => setDrag(null)}
         >

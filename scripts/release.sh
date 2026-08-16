@@ -35,6 +35,12 @@ TAURI_SIGNING_PRIVATE_KEY="$(cat "$KEY_PATH")" \
 TAURI_SIGNING_PRIVATE_KEY_PASSWORD="" \
 npm run tauri build
 
+# Nothing gets published without passing this. The public build must never
+# carry the developer's Fish Audio key — users bring their own — and a leaked
+# key inside a downloaded release cannot be recalled.
+echo "▸ scanning the build for credentials"
+bash scripts/check-secrets.sh dist src-tauri/target/release/bundle
+
 BUNDLE="src-tauri/target/release/bundle/macos"
 APP="$BUNDLE/Fish Reader.app"
 ARCHIVE_SRC="$BUNDLE/Fish Reader.app.tar.gz"

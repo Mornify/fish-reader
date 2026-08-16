@@ -955,10 +955,19 @@ svg {
   background: #fff;
   border-radius: 2px;
   overflow: hidden;
-  transition: width 0.4s linear;
-}
-.track-hit.dragging .fill {
+  /* No transition by default: scrubbing, ±15s skips and chapter jumps must
+     land instantly rather than sliding across the track. */
   transition: none;
+}
+/* Playback only. 520ms is deliberately just over the 500ms ticker: the fill
+   is still travelling when the next position arrives, so it moves continuously.
+   The old 400ms transition glided then sat still for 100ms, and the thumb had
+   no transition at all — so fill and thumb visibly disagreed twice a second. */
+.track-hit.smooth .fill {
+  transition: width 520ms linear;
+}
+.track-hit.smooth .thumb {
+  transition: left 520ms linear, opacity 0.12s;
 }
 .track-hit.dragging .fill::after {
   content: "";

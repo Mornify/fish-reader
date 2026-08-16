@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Page not found — Fish Reader</title>
+    <meta name="robots" content="noindex" />
+    <link rel="icon" href="favicon.svg" />
+    <link rel="stylesheet" href="style.css" />
+    <style>
+      /* The 404 uses the app's own surface, type and green accent so a wrong
+         link still feels like Fish Reader rather than a bare server error. */
+      .nf {
+        min-height: 70vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        gap: 18px;
+        padding: 40px 20px;
+      }
+      .nf-mark {
+        font-size: 13px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: #7ee081;
+      }
+      .nf h1 {
+        font-size: clamp(26px, 5vw, 38px);
+        line-height: 1.15;
+        margin: 0;
+        max-width: 18ch;
+      }
+      .nf p {
+        margin: 0;
+        max-width: 46ch;
+        color: #a3a09a;
+        line-height: 1.6;
+      }
+      .nf-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        justify-content: center;
+        margin-top: 6px;
+      }
+      /* a still frame of the reader's own highlight, so the page shows the
+         product's one distinctive idea instead of an error glyph */
+      .nf-demo {
+        margin-top: 26px;
+        padding: 18px 22px;
+        border: 1px solid #2a2a28;
+        border-radius: 14px;
+        background: #171716;
+        max-width: 34ch;
+        font-size: 15px;
+        line-height: 1.75;
+        color: #e8e6e1;
+        text-align: left;
+      }
+      .nf-demo .s {
+        background: #2b3a2c;
+        border-radius: 6px;
+        padding: 2px 1px;
+        -webkit-box-decoration-break: clone;
+        box-decoration-break: clone;
+      }
+      .nf-demo .w {
+        background: #7ee081;
+        color: #000;
+        border-radius: 5px;
+        padding: 1px 3px;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="nav">
+      <div class="wrap nav-inner">
+        <a class="wordmark" href="/fish-reader/"><strong>Fish</strong>Reader</a>
+        <nav>
+          <a href="/fish-reader/">Home</a>
+          <a href="/fish-reader/privacy.html">Privacy</a>
+        </nav>
+      </div>
+    </header>
+
+    <main class="wrap nf">
+      <span class="nf-mark">Error 404</span>
+      <h1>This page went quiet</h1>
+      <p>
+        The link you followed doesn't lead anywhere. It may have moved, or the
+        address might have a typo in it.
+      </p>
+      <div class="nf-actions">
+        <a class="btn primary" href="/fish-reader/">Back to the start</a>
+        <a class="btn" href="/fish-reader/app/">Open the reader</a>
+      </div>
+
+      <div class="nf-demo" aria-hidden="true">
+        <span class="s">The storm came <span class="w">before</span> the boy did.</span>
+      </div>
+    </main>
+
+    <footer class="wrap">
+      <p><strong>Fish</strong>Reader</p>
+      <p class="footer-links">
+        <a href="/fish-reader/">Home</a>
+        <a href="/fish-reader/privacy.html">Privacy</a>
+        <a href="/fish-reader/terms.html">Terms</a>
+      </p>
+    </footer>
+  </body>
+</html>
