@@ -134,6 +134,44 @@ const sentences = await load("src/lib/sentences.ts");
   check("first chapter still starts at zero", result.chapterStarts[0] === 0);
 }
 
+/* --- narration relay: access control ---
+ * The relay carries no shared credential (every request uses the caller's own
+ * Fish Audio key), so these guard its request budget rather than any secret.
+ * The pages.dev case is a real hole that shipped: the pattern matched ANY
+ * pages.dev subdomain, so anyone could deploy a site there and use the relay.  */
+{
+  const worker = await load("worker/index.js");
+  const hit = (origin, { method = "POST", path: p = "/v1/tts", auth = "Bearer k", length } = {}) => {
+    const headers = { Origin: origin };
+    if (auth) headers.Authorization = auth;
+    if (length) headers["Content-Length"] = String(length);
+    return worker.default.fetch(
+      new Request(`https://relay.test${p}`, {
+        method,
+        headers,
+        body: method === "GET" ? undefined : "x",
+      }),
+    );
+  };
+  // 403 means rejected at the gate; anything else means it reached the forward
+  // step (which fails offline with 502 — that still proves the gate let it in)
+  check("relay accepts the app's own origin", (await hit("https://mornify.github.io")).status !== 403);
+  check("relay rejects an unrelated site", (await hit("https://evil.com")).status === 403);
+  check("relay rejects a request with no Origin", (await hit("")).status === 403);
+  check(
+    "relay rejects someone else's pages.dev site",
+    (await hit("https://evil-site.pages.dev")).status === 403,
+  );
+  check(
+    "relay still allows the operator's own pages preview",
+    (await hit("https://abc123.fish-reader.pages.dev")).status !== 403,
+  );
+  check("relay rejects an oversized body", (await hit("https://mornify.github.io", { length: 200 * 1024 })).status === 413);
+  check("relay rejects methods it does not need", (await hit("https://mornify.github.io", { method: "DELETE" })).status === 405);
+  check("relay rejects unlisted paths", (await hit("https://mornify.github.io", { path: "/v1/admin" })).status === 404);
+  check("relay rejects a request with no key", (await hit("https://mornify.github.io", { auth: null })).status === 401);
+}
+
 /* --- expressive narration: only tags real dialogue cues --- */
 {
   const tag = expressive.autoTag;

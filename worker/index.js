@@ -14,6 +14,16 @@
  * It receives the user's own key in the Authorization header, forwards the
  * request verbatim to Fish Audio, and streams the audio straight back.
  *
+ * WHAT THE ORIGIN CHECK IS AND IS NOT
+ * `Origin` is set by browsers and cannot be forged by page JavaScript, so the
+ * allowlist does stop another website from pointing its users at this relay.
+ * It is NOT a defence against curl, which can send any Origin it likes. That is
+ * acceptable because every request must carry the caller's OWN Fish Audio key:
+ * there is no shared credential here to steal and no way to spend someone
+ * else's quota. The residual risk is someone burning this Worker's request
+ * budget, which is a quota problem, not a security one — cap it with a
+ * Cloudflare rate-limiting rule on the dashboard (see worker/README.md).
+ *
  * Deploy:  npx wrangler deploy      (see worker/README.md)
  */
 
@@ -45,12 +55,23 @@ function corsHeaders(origin) {
   };
 }
 
+// Only the operator's own Pages previews. The earlier pattern was
+// /^https:\/\/[a-z0-9-]+\.pages\.dev$/ — which matches ANY pages.dev subdomain,
+// so anyone could deploy a site to Cloudflare Pages and use this relay as their
+// own free proxy. Pages preview URLs are <hash>.<project>.pages.dev, so pinning
+// the project name is what actually restricts it.
+const PAGES_PREVIEW = /^https:\/\/(?:[a-z0-9-]+\.)?fish-reader\.pages\.dev$/;
+
 function isAllowedOrigin(origin) {
   if (!origin) return false;
   if (ALLOWED_ORIGINS.includes(origin)) return true;
-  // allow the operator's own preview deployments
-  return /^https:\/\/[a-z0-9-]+\.pages\.dev$/.test(origin);
+  return PAGES_PREVIEW.test(origin);
 }
+
+// A narration request is a sentence or a short passage. Anything far larger is
+// either a bug or someone trying to burn the relay's CPU budget, and refusing
+// it early costs nothing.
+const MAX_BODY_BYTES = 128 * 1024;
 
 export default {
   async fetch(request) {
@@ -68,6 +89,18 @@ export default {
 
     if (!ALLOWED_PATHS.has(url.pathname)) {
       return new Response("Not found", { status: 404, headers: corsHeaders(origin) });
+    }
+
+    if (request.method !== "GET" && request.method !== "POST") {
+      return new Response("Method not allowed", { status: 405, headers: corsHeaders(origin) });
+    }
+
+    const declaredLength = Number(request.headers.get("Content-Length") ?? 0);
+    if (declaredLength > MAX_BODY_BYTES) {
+      return new Response(JSON.stringify({ error: "Request too large" }), {
+        status: 413,
+        headers: { ...corsHeaders(origin), "Content-Type": "application/json" },
+      });
     }
 
     const auth = request.headers.get("Authorization");

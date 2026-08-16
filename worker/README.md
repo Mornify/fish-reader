@@ -50,6 +50,24 @@ A correct deployment answers `204` with an `Access-Control-Allow-Origin` header.
 (The un-relayed endpoint answers `401` with no CORS headers — that is the whole
 problem this solves.)
 
+## Keeping it up when the app gets busy
+
+There is no shared credential in this relay — every request carries the caller's
+own Fish Audio key, so nobody can spend anyone else's narration quota through it.
+The realistic failure mode is not theft but **volume**: the origin allowlist is
+enforced via the `Origin` header, which browsers set honestly and `curl` does
+not, so a determined script could still send traffic through and burn the daily
+request budget for everyone.
+
+Cap it with one Cloudflare rate-limiting rule (free tier includes one), set on
+the dashboard rather than in code so it can be tuned without a redeploy:
+
+> Cloudflare dashboard → your Worker → **Security** → **Rate limiting rules**
+> → limit requests per IP, e.g. 200 per minute.
+
+200/min is far above real reading (a sentence takes several seconds to narrate
+and is then cached forever) and far below what it takes to exhaust 100k/day.
+
 ## Cost
 
 Cloudflare's free tier covers 100,000 requests/day. One request is one sentence
