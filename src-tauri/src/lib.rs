@@ -1,30 +1,115 @@
 use serde::Serialize;
 use sha2::{Digest, Sha256};
-use std::{fs, path::PathBuf};
+use std::{fs, path::PathBuf, sync::Mutex};
 use tauri::Manager;
 
+/// Sentinel the frontend checks for to open the "connect your account" screen
+/// instead of showing a raw error.
+const NO_KEY: &str = "NO_API_KEY";
+
 struct AppState {
-    api_key: String,
+    /// Runtime-settable so a user can connect/change their account without
+    /// touching files. Persisted to config.json (owner-only permissions).
+    api_key: Mutex<String>,
     http: reqwest::Client,
     cache_dir: PathBuf,
+    config_path: PathBuf,
 }
 
-fn configured_api_key() -> String {
+/// Dev convenience only: a .env key seeds first launch. Real users set theirs
+/// in the app, which then takes precedence.
+fn env_api_key() -> String {
     std::env::var("FISH_API_KEY")
         .ok()
-        .filter(|key| !key.trim().is_empty())
-        .or_else(|| option_env!("FISH_API_KEY").map(str::to_owned))
+        .map(|k| k.trim().to_owned())
+        .filter(|key| !key.is_empty())
+        .unwrap_or_default()
+}
+
+fn read_stored_key(config_path: &PathBuf) -> String {
+    fs::read_to_string(config_path)
+        .ok()
+        .and_then(|raw| serde_json::from_str::<serde_json::Value>(&raw).ok())
+        .and_then(|v| {
+            v.get("fish_api_key")
+                .and_then(|k| k.as_str())
+                .map(|s| s.trim().to_owned())
+        })
+        .filter(|k| !k.is_empty())
         .unwrap_or_default()
 }
 
 impl AppState {
-    fn key(&self) -> Result<&str, String> {
-        if self.api_key.is_empty() {
-            Err("FISH_API_KEY is not set — add it to the .env file in the project root".into())
+    fn key(&self) -> Result<String, String> {
+        let key = self.api_key.lock().map_err(|_| NO_KEY.to_string())?.clone();
+        if key.is_empty() {
+            Err(NO_KEY.into())
         } else {
-            Ok(&self.api_key)
+            Ok(key)
         }
     }
+
+    fn persist_key(&self, key: &str) -> Result<(), String> {
+        let body = serde_json::json!({ "fish_api_key": key });
+        fs::write(
+            &self.config_path,
+            serde_json::to_string_pretty(&body).unwrap_or_default(),
+        )
+        .map_err(|e| format!("Couldn't save your key: {e}"))?;
+        // owner read/write only — never world-readable
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = fs::set_permissions(&self.config_path, fs::Permissions::from_mode(0o600));
+        }
+        Ok(())
+    }
+}
+
+/// Has the user connected a Fish Audio account yet?
+#[tauri::command]
+fn api_key_status(state: tauri::State<'_, AppState>) -> bool {
+    state.key().is_ok()
+}
+
+/// Validate a key against the live API, then store it. Returns a friendly
+/// error the onboarding screen shows inline.
+#[tauri::command]
+async fn set_api_key(state: tauri::State<'_, AppState>, key: String) -> Result<(), String> {
+    let key = key.trim().to_owned();
+    if key.is_empty() {
+        return Err("Paste your Fish Audio API key to continue.".into());
+    }
+
+    let resp = state
+        .http
+        .get("https://api.fish.audio/model")
+        .bearer_auth(&key)
+        .query(&[("page_size", "1")])
+        .send()
+        .await
+        .map_err(|_| "Couldn't reach Fish Audio. Check your internet connection.".to_string())?;
+
+    match resp.status().as_u16() {
+        200 => {}
+        401 | 403 => {
+            return Err("That key wasn't accepted. Make sure you copied the whole key.".into())
+        }
+        429 => return Err("Fish Audio is rate limiting this key. Try again in a moment.".into()),
+        other => return Err(format!("Fish Audio returned an unexpected error ({other}).")),
+    }
+
+    state.persist_key(&key)?;
+    *state.api_key.lock().map_err(|_| "Internal state error")? = key;
+    Ok(())
+}
+
+/// Disconnect the account (Settings → Disconnect).
+#[tauri::command]
+fn clear_api_key(state: tauri::State<'_, AppState>) -> Result<(), String> {
+    let _ = fs::remove_file(&state.config_path);
+    *state.api_key.lock().map_err(|_| "Internal state error")? = String::new();
+    Ok(())
 }
 
 /// Search/browse the Fish Audio voice catalog (or your own cloned voices).
@@ -190,7 +275,7 @@ async fn tts(
         });
     }
 
-    let key = state.key()?.to_string();
+    let key = state.key()?;
     let body = tts_body(&text, &voice_id);
 
     // primary: timestamped SSE endpoint
@@ -332,14 +417,20 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .setup(|app| {
             let data_dir = app.path().app_data_dir()?;
-            // production: the key lives in app-data/.env (dev loads ../.env above)
-            let _ = dotenvy::from_path(data_dir.join(".env"));
+            fs::create_dir_all(&data_dir)?;
             let cache_dir = data_dir.join("audio-cache");
             fs::create_dir_all(&cache_dir)?;
+            let config_path = data_dir.join("config.json");
+
+            // stored key wins; a dev .env only seeds an unconfigured install
+            let stored = read_stored_key(&config_path);
+            let api_key = if stored.is_empty() { env_api_key() } else { stored };
+
             app.manage(AppState {
-                api_key: configured_api_key(),
+                api_key: Mutex::new(api_key),
                 http: reqwest::Client::new(),
                 cache_dir,
+                config_path,
             });
             Ok(())
         })
@@ -349,7 +440,10 @@ pub fn run() {
             save_book,
             list_books,
             delete_book,
-            read_favorites_seed
+            read_favorites_seed,
+            api_key_status,
+            set_api_key,
+            clear_api_key
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

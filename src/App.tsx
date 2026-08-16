@@ -11,6 +11,8 @@ import { VoicesLibrary } from "./components/VoicesLibrary";
 import { CompactWindow, MiniPlayer } from "./components/MiniPlayer";
 import { enterMiniWindow, exitMiniWindow } from "./lib/windowMode";
 import { AvailableUpdate, checkForUpdate } from "./lib/updater";
+import { hasApiKey, isMissingKeyError } from "./lib/account";
+import { Onboarding } from "./components/Onboarding";
 import type { AppView } from "./components/Sidebar";
 import "./App.css";
 
@@ -36,10 +38,26 @@ export default function App() {
   const [miniWindow, setMiniWindow] = useState(false);
   const [update, setUpdate] = useState<AvailableUpdate | null>(null);
   const [updating, setUpdating] = useState(false);
+  /** null = still checking, "full" = first run, "reconnect" = key stopped working */
+  const [onboarding, setOnboarding] = useState<"full" | "reconnect" | null | undefined>(
+    undefined,
+  );
 
   useEffect(() => {
     void checkForUpdate().then(setUpdate);
+    void hasApiKey().then((ok) => setOnboarding(ok ? null : "full"));
   }, []);
+
+  // if the key is revoked/expired mid-use, the backend reports it and we ask
+  // the user to reconnect instead of showing a raw error
+  const sessionError = useSyncExternalStore(subscribeSession, getSession).error;
+  useEffect(() => {
+    if (sessionError && isMissingKeyError(sessionError)) {
+      session.pause();
+      session.clearError();
+      setOnboarding("reconnect");
+    }
+  }, [sessionError]);
 
   async function installUpdate() {
     if (!update || updating) return;
@@ -101,6 +119,18 @@ export default function App() {
   }
 
   const sessionBook = useSyncExternalStore(subscribeSession, getSession).book;
+
+  // hold the UI back one tick so first-run users never see the library flash
+  if (onboarding === undefined) return <div className="boot-screen" />;
+
+  if (onboarding) {
+    return (
+      <Onboarding
+        mode={onboarding}
+        onDone={() => setOnboarding(null)}
+      />
+    );
+  }
 
   if (miniWindow) {
     return <CompactWindow onExpand={() => void leaveMini()} />;

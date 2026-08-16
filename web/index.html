@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Fish Reader — listen to any book, follow every word</title>
+    <meta
+      name="description"
+      content="A private macOS reader that turns any book, PDF, or article into an audiobook — and highlights every word as it's spoken."
+    />
+    <meta property="og:title" content="Fish Reader" />
+    <meta
+      property="og:description"
+      content="Turn any book, PDF, or article into an audiobook — and follow every word as it reads."
+    />
+    <meta property="og:type" content="website" />
+    <link rel="icon" href="favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header class="nav">
+      <div class="wrap nav-inner">
+        <a class="wordmark" href="#top"><strong>Fish</strong>Reader</a>
+        <nav>
+          <a href="#features">Features</a>
+          <a href="#faq">FAQ</a>
+          <a
+            class="nav-gh"
+            href="https://github.com/Mornify/fish-reader"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+          >
+        </nav>
+      </div>
+    </header>
+
+    <main id="top">
+      <section class="hero wrap">
+        <div class="hero-copy">
+          <p class="eyebrow">For macOS · Free · Private</p>
+          <h1>Listen to any book.<br /><span class="accent">Follow every word.</span></h1>
+          <p class="lede">
+            Fish Reader turns books, PDFs, and articles into audiobooks in thousands of
+            natural voices — and highlights each word the moment it's spoken. Built for
+            people who read better with their ears and eyes together.
+          </p>
+
+          <div class="cta-row">
+            <a class="btn primary" id="download" href="https://github.com/Mornify/fish-reader/releases/latest">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 11l5 5 5-5M5 20h14"/></svg>
+              Download for macOS
+            </a>
+            <span class="cta-meta" id="release-meta">Apple Silicon · free</span>
+          </div>
+
+          <form class="waitlist" id="waitlist">
+            <label for="email" class="sr-only">Email address</label>
+            <input
+              id="email"
+              name="email"
+              type="email"
+              required
+              placeholder="you@example.com"
+              autocomplete="email"
+            />
+            <button class="btn ghost" type="submit">Get product updates</button>
+            <p class="waitlist-note" id="waitlist-note">
+              Occasional emails about new versions. No spam, unsubscribe anytime.
+            </p>
+          </form>
+        </div>
+
+        <!-- Live demo of the reading highlight: the product's core idea, animated -->
+        <div class="demo" aria-hidden="true">
+          <div class="demo-window">
+            <div class="demo-bar">
+              <span class="dot red"></span><span class="dot amber"></span
+              ><span class="dot green"></span>
+              <span class="demo-title">The Boy Who Farmed the Storm</span>
+            </div>
+            <div class="demo-body">
+              <p class="demo-p" id="demo-text"></p>
+            </div>
+            <div class="demo-player">
+              <div class="demo-track"><span id="demo-fill"></span></div>
+              <div class="demo-controls">
+                <span class="demo-cover"></span>
+                <span class="demo-meta">
+                  <b>The Boy Who Farmed the Storm</b>
+                  <i>Read by Rick Sanchez</i>
+                </span>
+                <span class="demo-play">
+                  <svg viewBox="0 0 24 24"><path d="M6 5h4v14H6zM14 5h4v14h-4z" /></svg>
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="strip wrap">
+        <div><b>EPUB</b><span>books with chapters</span></div>
+        <div><b>PDF</b><span>headers &amp; page numbers stripped</span></div>
+        <div><b>DOCX</b><span>+ HTML, RTF, Markdown, TXT</span></div>
+        <div><b>Paste</b><span>anything at all</span></div>
+      </section>
+
+      <section class="features wrap" id="features">
+        <h2>Reading that keeps up with you</h2>
+        <div class="grid">
+          <article>
+            <h3>Word-perfect highlighting</h3>
+            <p>
+              Each sentence lights up, and the exact word being spoken is marked as it's
+              said — so your eyes never lose the line. Built for dyslexic and ADHD
+              readers first.
+            </p>
+          </article>
+          <article>
+            <h3>Thousands of voices</h3>
+            <p>
+              Search a catalogue of millions by name or by feel — deep, calm, British,
+              dramatic. Preview instantly, favourite the ones you love, pick a different
+              narrator per book.
+            </p>
+          </article>
+          <article>
+            <h3>It reads books, not files</h3>
+            <p>
+              Copyright pages, tables of contents and indexes are skipped. PDF page
+              numbers, running headers and hyphen-split words are repaired. Chapters are
+              detected automatically.
+            </p>
+          </article>
+          <article>
+            <h3>Never pays twice</h3>
+            <p>
+              Every sentence is cached on your Mac the first time it's spoken. Re-reading,
+              scrubbing back and jumping chapters is instant — and free.
+            </p>
+          </article>
+          <article>
+            <h3>Keeps playing</h3>
+            <p>
+              Leave the book and a mini player follows you. Pop out a floating window that
+              stays on top. Media keys, AirPods and a sleep timer all work like you'd
+              expect.
+            </p>
+          </article>
+          <article>
+            <h3>Private by design</h3>
+            <p>
+              Your books, progress and audio live on your Mac — never on our servers,
+              because there are no servers. You connect your own narration account.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section class="steps wrap">
+        <h2>Running in two minutes</h2>
+        <ol>
+          <li><b>Download</b> and drag Fish Reader to Applications.</li>
+          <li><b>Connect</b> a free Fish Audio key — the app walks you through it.</li>
+          <li><b>Import a book</b> and press play. That's the whole setup.</li>
+        </ol>
+        <a class="btn primary" href="https://github.com/Mornify/fish-reader/releases/latest">
+          Download for macOS
+        </a>
+      </section>
+
+      <section class="faq wrap" id="faq">
+        <h2>Questions</h2>
+        <details>
+          <summary>Is it really free?</summary>
+          <p>
+            The app is free and open source. Narration runs on your own Fish Audio
+            account, which has a free tier — so casual reading typically costs nothing.
+          </p>
+        </details>
+        <details>
+          <summary>Why do I need my own narration key?</summary>
+          <p>
+            Because there's no middleman server. Your text goes straight from your Mac to
+            the voice API with your key, so nobody else sees what you read, and your usage
+            is yours to control.
+          </p>
+        </details>
+        <details>
+          <summary>Does it work offline?</summary>
+          <p>
+            Anything already narrated is cached and plays offline forever. New text needs
+            a connection the first time it's spoken.
+          </p>
+        </details>
+        <details>
+          <summary>Which Macs are supported?</summary>
+          <p>
+            Apple Silicon Macs (M1 and newer) on macOS 11 or later. On first launch,
+            right-click the app and choose Open — the build isn't notarized by Apple yet.
+          </p>
+        </details>
+        <details>
+          <summary>How do updates work?</summary>
+          <p>
+            Fish Reader checks for new versions on launch and updates itself with one
+            click. You never reinstall it manually.
+          </p>
+        </details>
+      </section>
+    </main>
+
+    <footer class="wrap">
+      <p><strong>Fish</strong>Reader — made for people who read with their ears.</p>
+      <p class="footer-links">
+        <a href="https://github.com/Mornify/fish-reader" target="_blank" rel="noopener"
+          >Source</a
+        >
+        <a
+          href="https://github.com/Mornify/fish-reader/releases"
+          target="_blank"
+          rel="noopener"
+          >Releases</a
+        >
+        <a
+          href="https://github.com/Mornify/fish-reader/issues"
+          target="_blank"
+          rel="noopener"
+          >Report a bug</a
+        >
+      </p>
+    </footer>
+
+    <script src="app.js"></script>
+  </body>
+</html>
