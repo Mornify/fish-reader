@@ -31,8 +31,9 @@ const WEB_CSP = [
   "worker-src 'self' blob:",
   // narration audio: streamed from the relay, then replayed from IndexedDB blobs
   "media-src 'self' blob: data: https://*.fish.audio https://*.r2.fish.audio",
-  // the voice catalogue is fetched from Fish directly; narration goes via relay
-  "connect-src 'self' https://api.fish.audio https://*.fish.audio https://fish-reader-relay.mornify.workers.dev",
+  // the voice catalogue is fetched from Fish directly; narration goes through
+  // the same-origin relay at /api, which 'self' already covers
+  "connect-src 'self' https://api.fish.audio https://*.fish.audio",
 ].join("; ");
 
 const webCspPlugin = {
@@ -49,9 +50,11 @@ const webCspPlugin = {
 export default defineConfig(async () => ({
   plugins: [react(), webCspPlugin],
 
-  // GitHub Pages serves the project site under a repo subpath, so assets must
-  // be requested relative to it. Desktop keeps the root base.
-  base: isWebBuild ? "/fish-reader/app/" : "/",
+  // Where the reader is mounted differs per host: Vercel serves it at /app/,
+  // GitHub Pages at /fish-reader/app/ because a project site lives under the
+  // repo name. Desktop keeps the root base.
+  // @ts-expect-error process is a nodejs global
+  base: isWebBuild ? (process.env.WEB_BASE ?? "/fish-reader/app/") : "/",
 
   build: {
     // web build goes to a separate folder so it never clobbers the desktop dist

@@ -8,3 +8,4 @@ target/
 
 # generated audio cache (can be huge)
 audio-cache/
+dist-vercel

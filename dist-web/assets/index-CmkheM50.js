@@ -1,0 +1,1 @@
+import{i}from"./index-3ReL972b.js";import"./docx-CSBDNECR.js";import"./epub-7-5Vejt-.js";async function a(t=0){await i("plugin:process|exit",{code:t})}async function e(){await i("plugin:process|restart")}export{a as exit,e as relaunch};

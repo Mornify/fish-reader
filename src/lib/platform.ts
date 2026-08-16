@@ -16,13 +16,19 @@ import * as store from "./webstore";
 
 export const isDesktop = (): boolean => "__TAURI_INTERNALS__" in window;
 
-/** Relay base URL. Same-origin `/api` in production so there is no extra DNS
- *  lookup or CORS hop; localhost during development. */
+/** Relay base URL.
+ *
+ *  Production is same-origin `/api`, served by the Vercel function in
+ *  `api/[...path].js`. Same-origin means the browser sends no preflight and
+ *  there is no second DNS lookup or TLS handshake before the first syllable of
+ *  audio — it also means the relay has no cross-origin surface to secure at all.
+ *
+ *  `npm run relay` runs the same logic on :8787 for local development. */
 export const RELAY_BASE: string =
   (import.meta.env?.VITE_RELAY_URL as string | undefined) ??
   (location.hostname === "localhost" || location.hostname === "127.0.0.1"
     ? "http://localhost:8787"
-    : "https://fish-reader-relay.mornify.workers.dev");
+    : "/api");
 
 const FISH_API = "https://api.fish.audio";
 const KEY_STORAGE = "fish-api-key";
