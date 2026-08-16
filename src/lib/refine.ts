@@ -245,18 +245,60 @@ export function detectChapters(text: string): { title: string; start: number }[]
       found.push({ title: line.replace(/\s+/g, " "), start: match.index });
     }
   }
-  // believable = at least 2, and not stacked on top of each other. The gap
-  // only needs to rule out consecutive heading lines ("PART I" directly above
-  // "CHAPTER ONE") and table-of-contents rows — a real chapter can still be
-  // short, so keep this threshold modest.
+  // What separates a real chapter heading from a table-of-contents row is what
+  // FOLLOWS it: a chapter is followed by prose, a contents row by another row.
+  // The previous rule measured the distance to the neighbouring heading and
+  // unconditionally kept found[0]. In a book whose contents listing sits near
+  // the top, that kept the row "Chapter One: The Storm" as chapter one and then
+  // discarded the real "CHAPTER ONE" heading just after it for being too close
+  // — so clicking chapter one jumped into the table of contents.
   if (found.length < 2) return [];
-  const spaced = found.filter((c, i) => i === 0 || c.start - found[i - 1].start > 120);
-  if (spaced.length < 2) return [];
-  // a dense run of headings across the whole document means we're looking at a
-  // contents listing, not chapters
-  const span = spaced[spaced.length - 1].start - spaced[0].start;
-  const averageGap = span / Math.max(1, spaced.length - 1);
-  return averageGap >= 120 ? spaced : [];
+  const MIN_BODY = 120;
+  const spaced = found.filter((c, i) => {
+    const next = i + 1 < found.length ? found[i + 1].start : text.length;
+    const body = text.slice(c.start + c.title.length, next).replace(/\s+/g, " ").trim();
+    return body.length >= MIN_BODY;
+  });
+  return spaced.length >= 2 ? spaced : [];
+}
+
+/**
+ * Drop the title page / copyright block / contents listing that sits in front
+ * of chapter one.
+ *
+ * EPUBs arrive as named sections, so classifySection() can throw these away by
+ * name. A PDF or a .txt is one continuous blob with no section names at all, so
+ * none of that logic could ever fire and the narrator read the ISBN, the
+ * copyright notice and every line of the table of contents before reaching the
+ * first sentence of the book.
+ *
+ * Only the region before the first real chapter is ever considered, and only
+ * when it actually looks like front matter — a book that opens straight into
+ * prose, or with an untitled prologue, keeps every word.
+ */
+export function stripFrontMatter(
+  text: string,
+  chapters: { title: string; start: number }[],
+): { text: string; chapters: { title: string; start: number }[]; dropped: string[] } {
+  if (chapters.length === 0 || chapters[0].start <= 0) return { text, chapters, dropped: [] };
+
+  const head = text.slice(0, chapters[0].start);
+  const dropped: string[] = [];
+  if (looksLikeCopyright(head)) dropped.push("Copyright");
+  if (looksLikeToc(head)) dropped.push("Contents");
+  if (dropped.length === 0) {
+    // a bare cover/title page: a few short lines and not a real sentence
+    const prose = head.replace(/\s+/g, " ").trim();
+    if (prose.length > 0 && prose.length < 200 && !/[.!?…]/.test(prose)) dropped.push("Title page");
+  }
+  if (dropped.length === 0) return { text, chapters, dropped: [] };
+
+  const cut = chapters[0].start;
+  return {
+    text: text.slice(cut),
+    chapters: chapters.map((c) => ({ title: c.title, start: c.start - cut })),
+    dropped,
+  };
 }
 
 /* ---------------- top-level ---------------- */
@@ -266,13 +308,14 @@ export function refineSections(sections: Section[], source: string): RefineResul
   // a one-page PDF needs the same cleanup as a hundred-page one
   if (source === "pdf" && sections.length >= 1 && /^page \d+$/i.test(sections[0]?.title ?? "")) {
     const cleaned = stripFootnoteMarks(cleanPdfPages(sections.map((s) => s.text)));
-    const chapters = detectChapters(cleaned);
-    if (chapters.length > 0) {
+    const found = detectChapters(cleaned);
+    if (found.length > 0) {
+      const front = stripFrontMatter(cleaned, found);
       return {
-        text: cleaned,
-        chapterTitles: chapters.map((c) => c.title),
-        chapterStarts: chapters.map((c) => c.start),
-        skipped: [],
+        text: front.text,
+        chapterTitles: front.chapters.map((c) => c.title),
+        chapterStarts: front.chapters.map((c) => c.start),
+        skipped: front.dropped,
       };
     }
     return { text: cleaned, chapterTitles: ["Full text"], chapterStarts: [0], skipped: [] };
@@ -290,13 +333,15 @@ export function refineSections(sections: Section[], source: string): RefineResul
   // single unnamed blob (txt/docx/rtf): try to find chapters inside it
   if (usable.length === 1) {
     const body = usable[0].text;
-    const chapters = detectChapters(body);
-    if (chapters.length > 0) {
+    const found = detectChapters(body);
+    if (found.length > 0) {
+      // a pasted or .txt book carries its front matter inline too
+      const front = stripFrontMatter(body, found);
       return {
-        text: body,
-        chapterTitles: chapters.map((c) => c.title),
-        chapterStarts: chapters.map((c) => c.start),
-        skipped,
+        text: front.text,
+        chapterTitles: front.chapters.map((c) => c.title),
+        chapterStarts: front.chapters.map((c) => c.start),
+        skipped: [...skipped, ...front.dropped],
       };
     }
   }

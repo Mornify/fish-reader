@@ -87,6 +87,53 @@ const sentences = await load("src/lib/sentences.ts");
   check("chapter offsets point at their heading", result.text.slice(result.chapterStarts[1], result.chapterStarts[1] + 11) === "CHAPTER ONE");
 }
 
+/* --- PDF/TXT front matter: the narrator must not read the ISBN or the TOC --- */
+{
+  const body = [
+    "THE LANTERN OF ASH",
+    "A Novel in Three Parts",
+    "by Hale Merrick",
+    "Copyright 2026 Hale Merrick. All rights reserved.",
+    "No part of this publication may be reproduced without permission.",
+    "ISBN 978-0-000000-00-0",
+    "Table of Contents",
+    "Chapter One: The Storm",
+    "Chapter Two: The Wheat Field",
+    "CHAPTER ONE",
+    "The storm came before the boy did. It tore the valley open and left the sky bleeding light for three days. Nobody in the village slept at all that week.",
+    "CHAPTER TWO",
+    "Kaien was standing where the lightning had been. He was perhaps twelve, and he was not burned, and that was the first impossible thing about him.",
+  ].join("\n\n");
+  const result = refine.refineSections([{ title: "", text: body }], "txt");
+  check("drops the copyright block from a plain-text book", !/ISBN|All rights reserved/i.test(result.text), result.text.slice(0, 80));
+  check("drops the contents listing", !/Table of Contents/i.test(result.text));
+  check("keeps the actual prose", result.text.includes("storm came before the boy"));
+  check(
+    "a contents row never becomes a chapter",
+    result.chapterTitles.join("|") === "CHAPTER ONE|CHAPTER TWO",
+    result.chapterTitles.join("|"),
+  );
+  check(
+    "chapter one points at the real heading, not the contents row",
+    result.text.slice(result.chapterStarts[0], result.chapterStarts[0] + 11) === "CHAPTER ONE",
+    JSON.stringify(result.text.slice(result.chapterStarts[0], result.chapterStarts[0] + 20)),
+  );
+  check("reports what it dropped", result.skipped.length > 0, JSON.stringify(result.skipped));
+}
+
+/* --- a book that opens straight into prose keeps every word --- */
+{
+  const body = [
+    "CHAPTER ONE",
+    "The storm came before the boy did. It tore the valley open and left the sky bleeding light for three days. Nobody in the village slept at all that week.",
+    "CHAPTER TWO",
+    "Kaien was standing where the lightning had been. He was perhaps twelve, and he was not burned, and that was the first impossible thing about him.",
+  ].join("\n\n");
+  const result = refine.refineSections([{ title: "", text: body }], "txt");
+  check("no front matter means nothing is dropped", result.skipped.length === 0);
+  check("first chapter still starts at zero", result.chapterStarts[0] === 0);
+}
+
 /* --- expressive narration: only tags real dialogue cues --- */
 {
   const tag = expressive.autoTag;

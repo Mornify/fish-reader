@@ -125,12 +125,27 @@ export function Reader({ book, onBack, onMiniWindow }: Props) {
     setTimeout(() => setToast(""), 3200);
   }
 
+  // Only the active sentence carries an id (ids for every sentence in a novel
+  // would be tens of thousands of nodes), so this can only run once React has
+  // committed the new active sentence. A fixed 60ms guess silently did nothing
+  // whenever the commit took longer — which is exactly what happens on the big
+  // books, where a missed jump is most obvious. Retry across a few frames
+  // instead, then give up rather than looping forever.
   function scrollToCurrent(behavior: ScrollBehavior) {
-    setTimeout(() => {
-      document
-        .getElementById(`s-${getSession().sentenceIdx}`)
-        ?.scrollIntoView({ block: "center", behavior });
-    }, 60);
+    let tries = 0;
+    const attempt = () => {
+      const el = document.getElementById(`s-${getSession().sentenceIdx}`);
+      if (el) {
+        el.scrollIntoView({ block: "center", behavior });
+        return;
+      }
+      // Keep looking for up to a second, then stop rather than loop forever.
+      // (setTimeout rather than requestAnimationFrame on purpose: rAF is frozen
+      // in a background tab, so a book opened in one would never be scrolled
+      // into place.)
+      if (tries++ < 20) setTimeout(attempt, 50);
+    };
+    attempt();
   }
 
   // Opening a book lands you exactly where you left off. This must wait for

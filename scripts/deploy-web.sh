@@ -5,9 +5,35 @@
 #   /app/        the reader    (dist-web/)
 #
 # Uses a detached worktree so the working tree is never disturbed.
+#
+# This script deliberately does NOT hide git's output. An earlier version ran
+# `git checkout --orphan gh-pages-tmp >/dev/null 2>&1`; once a run aborted and
+# left that branch behind, every later deploy failed on the name collision,
+# `set -e` killed the script *before the push*, and the swallowed stderr meant
+# it looked like it had worked. The site served a stale build for days. Hence:
+# unique branch name, cleanup on exit, visible errors, and a final check that
+# the bytes we just built are the bytes actually being served.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
+
+SITE_URL="https://mornify.github.io/fish-reader"
+TMP_BRANCH="gh-pages-deploy-$$"
+OUT=""
+WORKTREE=""
+
+cleanup() {
+  cd "$ROOT"
+  [ -n "$WORKTREE" ] && [ -d "$WORKTREE" ] && git worktree remove --force "$WORKTREE" >/dev/null 2>&1 || true
+  git branch -D "$TMP_BRANCH" >/dev/null 2>&1 || true
+  git worktree prune >/dev/null 2>&1 || true
+  [ -n "$OUT" ] && rm -rf "$OUT" || true
+}
+trap cleanup EXIT
+
+# a previous aborted run can leave these behind; they are ours to clear
+git worktree prune >/dev/null 2>&1 || true
+git branch -D gh-pages-tmp >/dev/null 2>&1 || true
 
 echo "▸ stamping asset versions"
 node scripts/version-web.mjs
@@ -15,6 +41,14 @@ node scripts/version-web.mjs
 echo "▸ building the web app"
 BUILD_TARGET=web npx tsc
 BUILD_TARGET=web npx vite build
+
+# the hash we are about to publish — used to prove the deploy landed
+BUILT_ASSET="$(grep -oE 'assets/index-[A-Za-z0-9_-]+\.js' dist-web/index.html | head -1)"
+if [ -z "$BUILT_ASSET" ]; then
+  echo "✗ could not find the built entry asset in dist-web/index.html" >&2
+  exit 1
+fi
+echo "  built $BUILT_ASSET"
 
 OUT="$(mktemp -d)"
 cp -R web/. "$OUT/"
@@ -24,20 +58,35 @@ cp -R dist-web/. "$OUT/app/"
 # GitHub Pages runs Jekyll by default and skips files starting with "_"
 touch "$OUT/.nojekyll"
 # the app is a single-page app; unknown deep links must still boot it
-cp "$OUT/app/index.html" "$OUT/app/404.html" 2>/dev/null || true
+cp "$OUT/app/index.html" "$OUT/app/404.html"
 
 echo "▸ publishing to gh-pages"
 WORKTREE="$(mktemp -d)"
-git worktree add --detach "$WORKTREE" >/dev/null 2>&1
-cd "$WORKTREE"
-git checkout --orphan gh-pages-tmp >/dev/null 2>&1
-git rm -rf . >/dev/null 2>&1 || true
-cp -R "$OUT/." .
-git add -A
-git -c user.name="$(git config user.name)" -c user.email="$(git config user.email)" \
-    commit -q -m "Deploy site + web app"
-git push -q --force origin HEAD:gh-pages
-cd "$ROOT"
-git worktree remove --force "$WORKTREE" >/dev/null 2>&1
-rm -rf "$OUT"
-echo "✅ deployed → https://mornify.github.io/fish-reader/  (app at /app/)"
+git worktree add --detach "$WORKTREE" >/dev/null
+(
+  cd "$WORKTREE"
+  git checkout --orphan "$TMP_BRANCH" >/dev/null
+  git rm -rf . >/dev/null 2>&1 || true
+  cp -R "$OUT/." .
+  git add -A
+  git -c user.name="$(git config user.name)" -c user.email="$(git config user.email)" \
+      commit -q -m "Deploy site + web app"
+  git push --force origin "HEAD:gh-pages"
+)
+
+echo "▸ waiting for GitHub Pages to serve the new build"
+# Pages rebuilds asynchronously; "deployed" only means something once the new
+# bundle is the one being served. Give it two minutes, then say so honestly.
+for attempt in $(seq 1 40); do
+  live="$(curl -fsS -H 'Cache-Control: no-cache' "$SITE_URL/app/?cb=$attempt" 2>/dev/null || true)"
+  if printf '%s' "$live" | grep -q "$BUILT_ASSET"; then
+    echo "✅ deployed and verified live → $SITE_URL/  (app at /app/)"
+    exit 0
+  fi
+  sleep 3
+done
+
+echo "⚠️  pushed, but $SITE_URL/app/ is still serving an older bundle." >&2
+echo "    Expected: $BUILT_ASSET" >&2
+echo "    GitHub Pages can lag a few minutes — re-check before assuming failure." >&2
+exit 1
