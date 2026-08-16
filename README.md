@@ -29,6 +29,17 @@ Mac.
 
 Scanned/image-only PDFs need OCR before they contain text Fish Reader can read.
 
+## Install
+
+Download the latest build from the
+[landing page](https://mornify.github.io/fish-reader/) or the
+[releases page](https://github.com/Mornify/fish-reader/releases/latest), unzip,
+and drag **Fish Reader** to Applications. On first launch, right-click the app
+and choose Open (the build isn't notarized by Apple yet).
+
+The app walks you through connecting a Fish Audio API key on first run, then
+updates itself whenever a new version is published.
+
 ## Run locally
 
 1. Copy `.env.example` to `.env`.
@@ -59,6 +70,9 @@ Developer ID signature and notarization.
 
 ## Commands
 
+- `npm test` — regression suite for import refinement, sentence splitting and
+  expressive narration
+- `npm run release <version>` — signed build + GitHub release (auto-update feed)
 - `npm run dev` — frontend-only preview
 - `npm run build` — TypeScript and production frontend build
 - `npm run tauri dev` — native development app
