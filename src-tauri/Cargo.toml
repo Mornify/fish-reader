@@ -2,7 +2,7 @@
 name = "fish-reader"
 version = "0.2.2"
 description = "Personal ElevenReader-style book reader powered by Fish Audio TTS"
-authors = ["Alekos Sofokleous"]
+authors = ["Mornify"]
 edition = "2021"
 
 [lib]

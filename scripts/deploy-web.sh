@@ -1,8 +1,10 @@
 #!/bin/bash
 # Publish the landing page + web app to the gh-pages branch.
 #
-#   /            landing page  (web/)
-#   /app/        the reader    (dist-web/)
+#   /            landing page (web/) — download links only.
+#
+# The reader itself is NOT published here: Pages is static, so the narration
+# relay at /api/* cannot exist and every play failed with error 405.
 #
 # Uses a detached worktree so the working tree is never disturbed.
 #
@@ -38,26 +40,17 @@ git branch -D gh-pages-tmp >/dev/null 2>&1 || true
 echo "▸ stamping asset versions"
 node scripts/version-web.mjs
 
-echo "▸ building the web app"
-BUILD_TARGET=web npx tsc
-BUILD_TARGET=web npx vite build
-
-BUILT_ASSET="$(grep -oE 'assets/index-[A-Za-z0-9_-]+\.js' dist-web/index.html | head -1)"
-if [ -z "$BUILT_ASSET" ]; then
-  echo "✗ could not find the built entry asset in dist-web/index.html" >&2
-  exit 1
-fi
-echo "  built $BUILT_ASSET"
+# GitHub Pages is a static host with no functions, so the reader's narration
+# relay (/api/*) cannot exist there — every play returned "error 405". Rather
+# than publish a copy of the app that can never narrate, Pages now serves only
+# the landing page and points at the Mac download. The working web app lives on
+# Vercel, where the relay is a real function.
 
 OUT="$(mktemp -d)"
 cp -R web/. "$OUT/"
-mkdir -p "$OUT/app"
-cp -R dist-web/. "$OUT/app/"
 
 # GitHub Pages runs Jekyll by default and skips files starting with "_"
 touch "$OUT/.nojekyll"
-# the app is a single-page app; unknown deep links must still boot it
-cp "$OUT/app/index.html" "$OUT/app/404.html"
 
 echo "▸ publishing to gh-pages"
 WORKTREE="$(mktemp -d)"
@@ -82,19 +75,19 @@ echo "▸ waiting for GitHub Pages to serve the new build"
 # hash identical, so an asset-only check reports success against a stale page.
 # That happened: the CSP was verified "live" while Pages was still serving the
 # previous HTML.
-EXPECTED_SHA="$(shasum -a 256 "$OUT/app/index.html" | cut -d' ' -f1)"
+EXPECTED_SHA="$(shasum -a 256 "$OUT/index.html" | cut -d' ' -f1)"
 
 for attempt in $(seq 1 40); do
-  live_sha="$(curl -fsS -H 'Cache-Control: no-cache' "$SITE_URL/app/?cb=$attempt" 2>/dev/null \
+  live_sha="$(curl -fsS -H 'Cache-Control: no-cache' "$SITE_URL/?cb=$attempt" 2>/dev/null \
               | shasum -a 256 | cut -d' ' -f1 || true)"
   if [ "$live_sha" = "$EXPECTED_SHA" ]; then
-    echo "✅ deployed and verified live → $SITE_URL/  (app at /app/)"
+    echo "✅ deployed and verified live → $SITE_URL/"
     exit 0
   fi
   sleep 3
 done
 
-echo "⚠️  pushed, but $SITE_URL/app/ is still serving an older page." >&2
+echo "⚠️  pushed, but $SITE_URL/ is still serving an older page." >&2
 echo "    Expected index.html sha256 $EXPECTED_SHA" >&2
 echo "    Last seen                  ${live_sha:-<no response>}" >&2
 echo "    GitHub Pages can lag a few minutes — re-check before assuming failure." >&2

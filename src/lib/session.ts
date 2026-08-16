@@ -259,14 +259,19 @@ export const session = {
     }
   },
 
-  /** Scrubber drop: jump and always start reading there. */
+  /** Scrubber drop: jump there and keep whatever the player was doing.
+   *
+   *  This used to force play() on every drop, so scrubbing while paused started
+   *  talking — you could not move to a spot and stay stopped. seekSentence()
+   *  already resumes when it was playing, so preserving state is simply a matter
+   *  of not overriding it. `playing` is emitted alongside the new position so a
+   *  scrub can never leave the button and the audio disagreeing. */
   seekSeconds(sec: number): boolean {
     if (!state.voice) return false;
     if (!player) makePlayer(state.voice);
     voicePreview.stop();
     player!.seekToSeconds(sec);
-    if (!player!.playing) player!.play();
-    emit({ elapsed: player!.estElapsedSec() });
+    emit({ elapsed: player!.estElapsedSec(), playing: player!.playing });
     return true;
   },
 
@@ -274,7 +279,9 @@ export const session = {
     if (!state.voice) return false;
     if (!player) makePlayer(state.voice);
     player!.skipBySeconds(delta);
-    emit({ elapsed: player!.estElapsedSec() });
+    // emit `playing` for the same reason as seekSeconds: the button and the
+    // audio must never be able to disagree after a jump
+    emit({ elapsed: player!.estElapsedSec(), playing: player!.playing });
     return true;
   },
 

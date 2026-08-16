@@ -45,18 +45,24 @@ const RATES = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4];
 export function PlayerBar(p: Props) {
   // While dragging, `drag` holds the preview fraction; null = follow playback.
   const [drag, setDrag] = useState<number | null>(null);
-  // After releasing, keep showing where it was dropped until playback actually
-  // reports a position near there. Without this the thumb snaps back to the old
-  // position for up to half a second (the ticker interval) and then jumps
-  // forward again — the single jerkiest thing about the old scrubber.
-  const [pending, setPending] = useState<number | null>(null);
+  // After releasing, keep showing where it was dropped until the player reports
+  // its new position — otherwise the thumb snaps back to the old position for
+  // up to a tick and then jumps forward again.
+  //
+  // What this must NOT do is wait for the player to agree with the drop point.
+  // Seeking snaps to the sentence containing that moment, so the real position
+  // routinely lands a whole sentence away from where the finger was; waiting for
+  // the two to converge left the bar frozen while audio played on, and then
+  // jumped it backwards when the wait expired. So remember the elapsed value at
+  // drop time and hand control back the moment it changes at all.
+  const [pending, setPending] = useState<{ frac: number; from: number } | null>(null);
   // True right after a discontinuity (scrub, ±15s skip, chapter jump) so the
   // bar lands instantly instead of sliding across the track.
   const [jumped, setJumped] = useState(false);
   const hitRef = useRef<HTMLDivElement>(null);
 
   const liveFrac = p.totalSec > 0 ? Math.min(1, p.elapsedSec / p.totalSec) : 0;
-  const frac = drag ?? pending ?? liveFrac;
+  const frac = drag ?? pending?.frac ?? liveFrac;
   const shownElapsed = frac === liveFrac ? p.elapsedSec : frac * p.totalSec;
 
   const previous = useRef(liveFrac);
@@ -72,14 +78,15 @@ export function PlayerBar(p: Props) {
 
   useEffect(() => {
     if (pending === null) return;
-    if (Math.abs(liveFrac - pending) < 0.02) {
+    // the player has reported a new position — it is authoritative from here
+    if (p.elapsedSec !== pending.from) {
       setPending(null);
       return;
     }
-    // never let the preview stick if the seek is slow or fails
-    const timer = setTimeout(() => setPending(null), 1500);
+    // and never let the preview stick if the seek is slow or fails
+    const timer = setTimeout(() => setPending(null), 600);
     return () => clearTimeout(timer);
-  }, [liveFrac, pending]);
+  }, [p.elapsedSec, pending]);
 
   // Animate only while playback is ticking forward on its own. The transition
   // is matched to the 500ms ticker so the fill moves continuously instead of
@@ -88,6 +95,10 @@ export function PlayerBar(p: Props) {
 
   function fracFromEvent(e: React.PointerEvent): number {
     const r = hitRef.current!.getBoundingClientRect();
+    // A zero-width track (mid-layout, collapsed panel, hidden window) would make
+    // this NaN, and NaN propagates all the way to "NaN:NaN" in the time display
+    // and a seek to nowhere. Treat an unmeasurable track as "no movement".
+    if (!(r.width > 0)) return 0;
     return Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
   }
 
@@ -108,8 +119,9 @@ export function PlayerBar(p: Props) {
           onPointerUp={(e) => {
             if (drag === null) return;
             const dropped = fracFromEvent(e);
-            // hold the dropped position on screen until playback catches up
-            setPending(dropped);
+            // hold the dropped position on screen until the player reports a
+            // new one, remembering what elapsed was so we can tell when it moves
+            setPending({ frac: dropped, from: p.elapsedSec });
             setDrag(null);
             p.onSeekSeconds(dropped * p.totalSec);
           }}
