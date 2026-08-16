@@ -238,7 +238,10 @@ export function detectChapters(text: string): { title: string; start: number }[]
   while ((match = re.exec(text))) {
     const line = match[0].trim();
     if (!line) continue;
-    if (CHAPTER_WORD.test(line) || NUMBERED_HEADING.test(line.replace(/\s+/g, " "))) {
+    // isHeadingLine also rejects lines ending in sentence punctuation, so a
+    // hard-wrapped prose line that happens to start with "Part"/"Book" can no
+    // longer masquerade as a chapter
+    if (isHeadingLine(line) && (CHAPTER_WORD.test(line) || NUMBERED_HEADING.test(line.replace(/\s+/g, " ")))) {
       found.push({ title: line.replace(/\s+/g, " "), start: match.index });
     }
   }
@@ -260,7 +263,8 @@ export function detectChapters(text: string): { title: string; start: number }[]
 
 export function refineSections(sections: Section[], source: string): RefineResult {
   // PDFs arrive as one pseudo-section per page — handle separately
-  if (source === "pdf" && sections.length > 1 && /^page \d+$/i.test(sections[0]?.title ?? "")) {
+  // a one-page PDF needs the same cleanup as a hundred-page one
+  if (source === "pdf" && sections.length >= 1 && /^page \d+$/i.test(sections[0]?.title ?? "")) {
     const cleaned = stripFootnoteMarks(cleanPdfPages(sections.map((s) => s.text)));
     const chapters = detectChapters(cleaned);
     if (chapters.length > 0) {

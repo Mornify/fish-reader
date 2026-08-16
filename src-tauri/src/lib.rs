@@ -121,6 +121,12 @@ async fn set_api_key(state: tauri::State<'_, AppState>, key: String) -> Result<(
 #[tauri::command]
 fn clear_api_key(state: tauri::State<'_, AppState>) -> Result<(), String> {
     let _ = fs::remove_file(&state.config_path);
+    // the pre-0.2.1 credential lives alongside it; leaving it behind would let
+    // setup() silently reconnect the account on the next launch, so a
+    // "disconnect" that the user performed would not survive a restart
+    if let Some(dir) = state.config_path.parent() {
+        let _ = fs::remove_file(dir.join(".env"));
+    }
     *state.api_key.lock().map_err(|_| "Internal state error")? = String::new();
     Ok(())
 }
@@ -351,7 +357,10 @@ async fn tts(
         return Err("Fish TTS returned no audio".into());
     }
 
-    let tmp = cache_path.with_extension("part");
+    // unique temp name: two concurrent syntheses of identical text would
+    // otherwise write the same ".part" path and could rename a half-written
+    // file into the permanent cache
+    let tmp = cache_path.with_extension(format!("{}.part", std::process::id()));
     fs::write(&tmp, &audio).map_err(|e| e.to_string())?;
     fs::rename(&tmp, &cache_path).map_err(|e| e.to_string())?;
     if !segments.is_empty() {
@@ -518,9 +527,13 @@ fn delete_book(app: tauri::AppHandle, id: String) -> Result<(), String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // Dev: cwd is src-tauri, so the project-root .env is one level up.
-    let _ = dotenvy::dotenv();
-    let _ = dotenvy::from_path("../.env");
+    // Dev only: cwd is src-tauri, so the project-root .env is one level up.
+    // A release build must never absorb a .env from wherever it was launched.
+    #[cfg(debug_assertions)]
+    {
+        let _ = dotenvy::dotenv();
+        let _ = dotenvy::from_path("../.env");
+    }
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
@@ -533,15 +546,18 @@ pub fn run() {
             fs::create_dir_all(&cache_dir)?;
             let config_path = data_dir.join("config.json");
 
-            // stored key wins; otherwise migrate a pre-0.2.1 app-data/.env (or
-            // a dev .env) once, so upgrading never logs anyone out
+            // Stored key wins. Otherwise migrate a pre-0.2.1 app-data/.env
+            // once. The legacy file is deleted after migrating — if it stayed,
+            // every launch would re-import it and Settings → Disconnect could
+            // never actually take effect.
+            let legacy_env = data_dir.join(".env");
             let mut api_key = read_stored_key(&config_path);
-            if api_key.is_empty() {
-                let _ = dotenvy::from_path(data_dir.join(".env"));
+            let mut migrated = false;
+            if api_key.is_empty() && legacy_env.exists() {
+                let _ = dotenvy::from_path(&legacy_env);
                 api_key = env_api_key();
+                migrated = !api_key.is_empty();
             }
-
-            let migrated = !api_key.is_empty() && !config_path.exists();
 
             app.manage(AppState {
                 api_key: Mutex::new(api_key),
@@ -555,11 +571,14 @@ pub fn run() {
                 config_path,
             });
 
-            // persist the migrated key so this only ever happens once
+            // persist the migrated key, then remove the legacy file so this
+            // only ever happens once and Disconnect stays disconnected
             if migrated {
                 let state = app.state::<AppState>();
                 if let Ok(key) = state.key() {
-                    let _ = state.persist_key(&key);
+                    if state.persist_key(&key).is_ok() {
+                        let _ = fs::remove_file(&legacy_env);
+                    }
                 }
             }
             Ok(())

@@ -38,15 +38,23 @@ function endsWithAbbreviation(text: string): boolean {
   return ABBREVIATION_END.test(text) || INITIAL_END.test(text);
 }
 
-/** Re-join segments the segmenter cut at an abbreviation. */
+/** Re-join segments the segmenter cut at an abbreviation.
+ *
+ *  Never merges across a paragraph break: the reader assigns sentences to
+ *  paragraphs by character offset, so a sentence spanning a blank line would
+ *  be filed under the previous paragraph and leave the next one to fall back
+ *  to rendering its raw text — printing the same prose twice. */
 function mergeAbbreviations(list: Sentence[], source: string): Sentence[] {
   const merged: Sentence[] = [];
   for (const sentence of list) {
     const prev = merged[merged.length - 1];
     if (prev && endsWithAbbreviation(prev.text)) {
-      prev.end = sentence.end;
-      prev.text = source.slice(prev.start, prev.end).trim();
-      continue;
+      const between = source.slice(prev.end, sentence.start);
+      if (!/\n\s*\n/.test(between)) {
+        prev.end = sentence.end;
+        prev.text = source.slice(prev.start, prev.end).trim();
+        continue;
+      }
     }
     merged.push({ ...sentence });
   }

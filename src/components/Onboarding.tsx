@@ -97,7 +97,7 @@ export function Onboarding({ mode = "full", onDone }: Props) {
                 <SparkleIcon /> Every word highlights as it&apos;s spoken
               </li>
               <li>
-                <BookIcon /> Your books never leave this Mac
+                <BookIcon /> Your library and progress stay on this Mac
               </li>
             </ul>
             <button className="button primary onboard-cta" onClick={() => setStep(1)}>
@@ -108,12 +108,15 @@ export function Onboarding({ mode = "full", onDone }: Props) {
 
         {step === 1 && (
           <section className="onboard-step">
-            <p className="onboard-eyebrow">Step 1 of 2</p>
+            <p className="onboard-eyebrow">{mode === "reconnect" ? "Reconnect" : "Step 1 of 2"}</p>
             <h1>Connect Fish Audio</h1>
             <p className="onboard-lede">
-              Fish Reader uses your own Fish Audio account for narration, so your
-              listening stays private and you keep control of usage. It&apos;s free to
-              start.
+              Fish Reader narrates with your own Fish Audio account, so you keep control
+              of usage and there&apos;s no middleman. It&apos;s free to start.
+            </p>
+            <p className="onboard-fineprint onboard-privacy">
+              Text you play is sent to Fish Audio to be spoken. Your books, progress and
+              saved audio stay on this Mac.
             </p>
 
             <ol className="onboard-howto">
@@ -188,7 +191,7 @@ export function Onboarding({ mode = "full", onDone }: Props) {
                     className="orb"
                     style={orbStyle(voice.id)}
                     onClick={() =>
-                      voice.sample && voicePreview.toggle(voice.id, voice.sample)
+                      voice.sample && voicePreview.toggle(voice.id, voice.sample, setError)
                     }
                     aria-label={`Preview ${voice.title}`}
                   >

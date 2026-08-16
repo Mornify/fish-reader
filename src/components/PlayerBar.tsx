@@ -30,6 +30,8 @@ interface Props {
   onBookmark: () => void;
   bookmarked: boolean;
   onVoices: () => void;
+  /** waiting on synthesis — show progress rather than silence */
+  buffering?: boolean;
   /** seconds until sleep pause; null = timer off */
   sleepRemaining: number | null;
   onSleep: (minutes: number | null) => void;
@@ -107,8 +109,12 @@ export function PlayerBar(p: Props) {
           <button className="icon-btn skip" onClick={p.onBack15}>
             <SkipIcon back /> <em>15</em>
           </button>
-          <button className="play-circle" onClick={p.onToggle}>
-            {p.playing ? <PauseIcon /> : <PlayIcon />}
+          <button
+            className={`play-circle ${p.buffering ? "busy" : ""}`}
+            onClick={p.onToggle}
+            title={p.buffering ? "Preparing narration…" : undefined}
+          >
+            {p.buffering ? <span className="spinner" /> : p.playing ? <PauseIcon /> : <PlayIcon />}
           </button>
           <button className="icon-btn skip" onClick={p.onFwd15}>
             <SkipIcon /> <em>15</em>

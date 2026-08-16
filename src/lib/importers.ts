@@ -291,7 +291,9 @@ function extractBlockText(root: Element): string {
 function markdownToText(markdown: string): string {
   return normalizeText(
     markdown
-      .replace(/^---[\s\S]*?---\s*/m, "")
+      // anchored: without \A-style anchoring this eats everything between
+      // the first two "---" horizontal rules in a file with no front matter
+      .replace(/^---\r?\n[\s\S]*?\r?\n---\s*/, "")
       .replace(/```[\s\S]*?```/g, (block) => block.replace(/^```\w*\n?|\n?```$/g, ""))
       .replace(/!\[([^\]]*)\]\([^)]+\)/g, "$1")
       .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")

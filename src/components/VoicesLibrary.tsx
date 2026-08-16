@@ -80,6 +80,7 @@ export function VoicesLibrary() {
             <h2>Default voice</h2>
             <VoiceRow
               voice={defaultVoice}
+              saved={favorites.some((f) => f.id === defaultVoice.id)}
               isDefault
               previewing={previewing === defaultVoice.id}
               onPreview={() => preview(defaultVoice)}
@@ -97,6 +98,7 @@ export function VoicesLibrary() {
                 <VoiceRow
                   key={voice.id}
                   voice={voice}
+                  saved={favorites.some((f) => f.id === voice.id)}
                   isDefault={defaultVoice?.id === voice.id}
                   previewing={previewing === voice.id}
                   onPreview={() => preview(voice)}
@@ -144,6 +146,7 @@ function VoiceRow({
   voice,
   isDefault,
   previewing,
+  saved,
   onPreview,
   onChoose,
   onRemove,
@@ -151,6 +154,8 @@ function VoiceRow({
   voice: SavedVoice;
   isDefault: boolean;
   previewing: boolean;
+  /** the default voice can be un-saved, so this cannot be hard-coded on */
+  saved: boolean;
   onPreview: () => void;
   onChoose: () => void;
   onRemove: () => void;
@@ -176,11 +181,11 @@ function VoiceRow({
         </span>
       )}
       <button
-        className="heart on"
+        className={`heart ${saved ? "on" : ""}`}
         onClick={onRemove}
-        aria-label={`Remove ${voice.title} from saved voices`}
+        aria-label={saved ? `Remove ${voice.title} from saved voices` : `Save ${voice.title}`}
       >
-        <HeartIcon filled />
+        <HeartIcon filled={saved} />
       </button>
     </article>
   );

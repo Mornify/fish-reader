@@ -113,6 +113,19 @@ const sentences = await load("src/lib/sentences.ts");
   check("still splits after the word I", pronounI.length === 2, JSON.stringify(pronounI.map((p) => p.text)));
   const authorInitial = sentences.splitSentences("A. Writer lives here. He is calm.");
   check("keeps a leading author initial attached", authorInitial.length === 2, JSON.stringify(authorInitial.map((p) => p.text)));
+
+  // a merge across a blank line would make the reader render a paragraph twice
+  const acrossParagraphs = sentences.splitSentences("He met Dr.\n\nThe next morning was cold.");
+  check(
+    "never merges across a paragraph break",
+    acrossParagraphs.length === 2,
+    JSON.stringify(acrossParagraphs.map((p) => p.text)),
+  );
+  check(
+    "offsets stay inside their own paragraph",
+    acrossParagraphs[1].start > "He met Dr.".length,
+    JSON.stringify(acrossParagraphs),
+  );
   const long = sentences.splitSentences("word ".repeat(300));
   check("splits over-long text for TTS limits", long.every((s) => s.text.length <= 400));
 }

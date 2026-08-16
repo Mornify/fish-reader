@@ -94,6 +94,8 @@ export interface PlayerCallbacks {
   onError?: (message: string) => void;
   /** fires as each clip starts: true = played from local cache (free) */
   onClipSource?: (cached: boolean) => void;
+  /** true while waiting on synthesis, so the UI can show it is working */
+  onBuffering?: (buffering: boolean) => void;
 }
 
 /**
@@ -246,6 +248,10 @@ export class ReaderPlayer {
     const wasPlaying = this.playing;
     this.pause();
     this.finished = false;
+    // An explicit seek must restart the target sentence. Without this, the
+    // mid-sentence resume path matches when the seek lands inside the sentence
+    // already loaded, and ±15s (or clicking the current sentence) does nothing.
+    this.audioIndex = -1;
     this.index = Math.max(0, Math.min(i, this.sentences.length - 1));
     this.cb.onSentence?.(this.index);
     if (wasPlaying) this.play();
@@ -322,10 +328,12 @@ export class ReaderPlayer {
     this.prefetch(i + 1);
 
     let clip: ClipData;
+    this.cb.onBuffering?.(true);
     try {
       clip = await this.fetchClip(i);
     } catch (e) {
       if (epoch !== this.epoch) return;
+      this.cb.onBuffering?.(false);
       if (attempt === 0) {
         // transient network/API hiccup: the failed promise already evicted
         // itself from clipCache, so retry once before surfacing an error
@@ -340,6 +348,7 @@ export class ReaderPlayer {
       return;
     }
     if (epoch !== this.epoch) return; // user paused/seeked while we were loading
+    this.cb.onBuffering?.(false);
     this.cb.onClipSource?.(clip.cached);
 
     const audio = new Audio(clip.url);
@@ -356,7 +365,7 @@ export class ReaderPlayer {
       if (epoch !== this.epoch) return;
       this.playing = false;
       this.cb.onState?.(false);
-      this.cb.onError?.(`audio element failed for sentence ${i}`);
+      this.cb.onError?.("That part of the audio couldn't be played. Try again.");
     };
     try {
       await audio.play();

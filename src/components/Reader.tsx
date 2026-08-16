@@ -17,6 +17,11 @@ interface Props {
   onMiniWindow: () => void;
 }
 
+/** Hoisted so its identity is stable across renders. An inline arrow here
+ *  defeats <Para>'s React.memo and re-reconciles the whole document on every
+ *  spoken word. `session` is a module singleton, so this closes over nothing. */
+const seekToSentence = (i: number) => session.seekSentence(i);
+
 interface Paragraph {
   start: number;
   end: number;
@@ -199,7 +204,7 @@ export function Reader({ book, onBack, onMiniWindow }: Props) {
                 firstIdx={p.sentenceFrom}
                 activeIdx={s.sentenceIdx >= p.sentenceFrom && s.sentenceIdx < p.sentenceTo ? s.sentenceIdx : -1}
                 word={s.word && s.word.start >= p.start && s.word.end <= p.end ? s.word : null}
-                onSeek={(i) => session.seekSentence(i)}
+                onSeek={seekToSentence}
               />
             ))}
             <div className="reader-tail" />
@@ -240,6 +245,7 @@ export function Reader({ book, onBack, onMiniWindow }: Props) {
         totalSec={s.totalSec}
         rate={rate}
         cachedClip={s.cached && s.playing}
+        buffering={s.buffering}
         rightExtras={
           <>
             <button

@@ -82,7 +82,11 @@ function reportVoiceError(reason: unknown, setError: (msg: string) => void) {
 }
 
 export function VoicesPanel({ open, currentVoiceId, onSelect, onClose }: Props) {
-  const [tab, setTab] = useState<Tab>("Recent");
+  // a first-time user routed here to pick a voice would otherwise land on an
+  // empty "Recent" list at exactly the moment they need choices
+  const [tab, setTab] = useState<Tab>(() =>
+    prefs.recents().length > 0 ? "Recent" : prefs.favorites().length > 0 ? "Favorites" : "Explore",
+  );
   const [search, setSearch] = useState("");
   const [activeTags, setActiveTags] = useState<string[]>([]);
   const [language, setLanguage] = useState("");

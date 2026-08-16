@@ -35,6 +35,9 @@ export function Settings({ onClose, onReconnect }: Props) {
   const [confirmClear, setConfirmClear] = useState(false);
   const [updateNote, setUpdateNote] = useState("");
   const [checking, setChecking] = useState(false);
+  const [pendingUpdate, setPendingUpdate] = useState<Awaited<ReturnType<typeof checkForUpdate>>>(null);
+  const [installing, setInstalling] = useState(false);
+  const [confirmDisconnect, setConfirmDisconnect] = useState(false);
 
   async function refreshCache() {
     try {
@@ -54,6 +57,9 @@ export function Settings({ onClose, onReconnect }: Props) {
   }, [onClose]);
 
   async function clearCache() {
+    // the player holds asset:// URLs to these exact files; deleting them
+    // mid-sentence kills narration with no explanation
+    session.pause();
     setClearing(true);
     try {
       await invoke("clear_cache");
@@ -68,10 +74,22 @@ export function Settings({ onClose, onReconnect }: Props) {
     setChecking(true);
     setUpdateNote("");
     const update = await checkForUpdate();
-    setUpdateNote(
-      update ? `Version ${update.version} is available — restart to update.` : "You're up to date.",
-    );
+    setPendingUpdate(update);
+    // never claim "restart to update" — restarting installs nothing; offer the
+    // actual install instead
+    setUpdateNote(update ? `Version ${update.version} is ready to install.` : "You're up to date.");
     setChecking(false);
+  }
+
+  async function installUpdate() {
+    if (!pendingUpdate || installing) return;
+    setInstalling(true);
+    try {
+      await pendingUpdate.install(); // relaunches on success
+    } catch {
+      setUpdateNote("The update couldn't be installed. Check your connection and try again.");
+      setInstalling(false);
+    }
   }
 
   async function disconnect() {
@@ -101,9 +119,20 @@ export function Settings({ onClose, onReconnect }: Props) {
             <strong>Fish Audio account</strong>
             <p>Used to narrate your books. Stored only on this Mac.</p>
           </div>
-          <button className="button secondary compact" onClick={() => void disconnect()}>
-            Disconnect
-          </button>
+          {confirmDisconnect ? (
+            <span className="settings-confirm">
+              <button className="text-button" onClick={() => setConfirmDisconnect(false)}>
+                Cancel
+              </button>
+              <button className="text-button danger" onClick={() => void disconnect()}>
+                Disconnect
+              </button>
+            </span>
+          ) : (
+            <button className="button secondary compact" onClick={() => setConfirmDisconnect(true)}>
+              Disconnect
+            </button>
+          )}
         </div>
 
         <div className="settings-row">
@@ -144,13 +173,23 @@ export function Settings({ onClose, onReconnect }: Props) {
             <strong>Version {APP_VERSION}</strong>
             <p>{updateNote || "Fish Reader updates itself when a new version is published."}</p>
           </div>
-          <button
-            className="button secondary compact"
-            onClick={() => void checkUpdates()}
-            disabled={checking}
-          >
-            {checking ? "Checking…" : "Check for updates"}
-          </button>
+          {pendingUpdate ? (
+            <button
+              className="button primary compact"
+              onClick={() => void installUpdate()}
+              disabled={installing}
+            >
+              {installing ? "Installing…" : "Install & Restart"}
+            </button>
+          ) : (
+            <button
+              className="button secondary compact"
+              onClick={() => void checkUpdates()}
+              disabled={checking}
+            >
+              {checking ? "Checking…" : "Check for updates"}
+            </button>
+          )}
         </div>
       </section>
     </div>

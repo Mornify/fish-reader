@@ -26,6 +26,8 @@ export interface SessionState {
   sleepRemaining: number | null;
   /** narration volume 0..1 */
   volume: number;
+  /** waiting on synthesis — the UI shows this instead of silent nothing */
+  buffering: boolean;
 }
 
 const CHARS_PER_SEC = 15;
@@ -43,6 +45,7 @@ let state: SessionState = {
   error: "",
   sleepRemaining: null,
   volume: prefs.volume(),
+  buffering: false,
 };
 
 let player: ReaderPlayer | null = null;
@@ -160,12 +163,14 @@ function makePlayer(voice: SavedVoice): ReaderPlayer {
       }
       if (playing) startTicker();
       else {
+        emit({ buffering: false });
         persistNow();
         stopTickerIfIdle();
       }
     },
       onError: (m) => emit({ error: m }),
       onClipSource: (cached) => emit({ cached }),
+      onBuffering: (buffering) => emit({ buffering }),
     },
     undefined,
     "en",
@@ -343,6 +348,7 @@ export const session = {
       cached: false,
       error: "",
       sleepRemaining: null,
+      buffering: false,
     });
   },
 

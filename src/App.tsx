@@ -58,16 +58,24 @@ export default function App() {
     if (sessionError && isMissingKeyError(sessionError)) {
       session.pause();
       session.clearError();
+      // the full-page connect screen cannot fit the 440x148 always-on-top
+      // window, and CompactWindow's expand button unmounts with it
+      if (miniWindow) void leaveMini();
       setOnboarding("reconnect");
     }
-  }, [sessionError]);
+  }, [sessionError, miniWindow]);
+
+  const [updateError, setUpdateError] = useState("");
 
   async function installUpdate() {
     if (!update || updating) return;
     setUpdating(true);
+    setUpdateError("");
     try {
       await update.install(); // relaunches on success
     } catch {
+      // a silent revert to "Update & Restart" after a long wait reads as broken
+      setUpdateError("The update couldn't be installed. Check your connection and try again.");
       setUpdating(false);
     }
   }
@@ -84,9 +92,12 @@ export default function App() {
   useEffect(() => {
     void (async () => {
       let list = await loadBooks().catch(() => []);
-      if (list.length === 0) {
+      // only ever seed the sample once — otherwise a book the user deleted
+      // reappears by itself whenever the library is empty
+      if (list.length === 0 && localStorage.getItem("welcome-seeded") !== "1") {
         const welcome = makeBook("Welcome to Fish Reader", WELCOME);
         await saveBook(welcome).catch(() => {});
+        localStorage.setItem("welcome-seeded", "1");
         list = [welcome];
       }
       setBooks(list);
@@ -181,6 +192,12 @@ export default function App() {
               Later
             </button>
           )}
+          {updateError && <span className="update-error">{updateError}</span>}
+        </div>
+      )}
+      {sessionError && !isMissingKeyError(sessionError) && (
+        <div className="toast error-toast app-toast" onClick={() => session.clearError()}>
+          {sessionError}
         </div>
       )}
       {sessionBook && <MiniPlayer onExpand={() => setReading(sessionBook)} />}

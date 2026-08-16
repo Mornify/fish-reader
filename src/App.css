@@ -2215,3 +2215,53 @@ svg {
     transform: none;
   }
 }
+
+/* Off-screen panels stay in the DOM for their slide animation. Without this
+   their buttons remain tabbable and focus silently disappears off-screen. */
+.voices-panel:not(.open),
+.reader-drawer:not(.open) {
+  visibility: hidden;
+  pointer-events: none;
+}
+.voices-panel.open,
+.reader-drawer.open {
+  visibility: visible;
+  pointer-events: auto;
+}
+
+/* Working indicator on the play button — silence with a frozen 00:00 reads
+   as a broken app while the first sentence is synthesised. */
+.spinner {
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  border: 2px solid rgba(0, 0, 0, 0.25);
+  border-top-color: #000;
+  animation: spin 0.7s linear infinite;
+}
+.play-circle.busy {
+  cursor: progress;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation-duration: 2s;
+  }
+}
+
+/* playback errors surfaced outside the reader (library / mini player) */
+.app-toast {
+  top: auto;
+  bottom: 96px;
+  z-index: 80;
+}
+
+.update-error {
+  color: #ff8a80;
+  font-size: 12px;
+  max-width: 220px;
+}

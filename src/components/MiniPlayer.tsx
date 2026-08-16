@@ -37,8 +37,8 @@ export function MiniPlayer({ onExpand }: Props) {
           <button className="icon-btn skip" onClick={() => session.skipBySeconds(-15)}>
             <SkipGlyph back /> <em>15</em>
           </button>
-          <button className="play-circle small" onClick={toggle}>
-            {s.playing ? <PauseIcon /> : <PlayIcon />}
+          <button className={`play-circle small ${s.buffering ? "busy" : ""}`} onClick={toggle}>
+            {s.buffering ? <span className="spinner" /> : s.playing ? <PauseIcon /> : <PlayIcon />}
           </button>
           <button className="icon-btn skip" onClick={() => session.skipBySeconds(15)}>
             <SkipGlyph /> <em>15</em>
@@ -75,8 +75,8 @@ export function CompactWindow({ onExpand }: { onExpand: () => void }) {
           <button className="icon-btn skip" onClick={() => session.skipBySeconds(-15)}>
             <SkipGlyph back /> <em>15</em>
           </button>
-          <button className="play-circle small" onClick={() => session.toggle()}>
-            {s.playing ? <PauseIcon /> : <PlayIcon />}
+          <button className={`play-circle small ${s.buffering ? "busy" : ""}`} onClick={() => session.toggle()}>
+            {s.buffering ? <span className="spinner" /> : s.playing ? <PauseIcon /> : <PlayIcon />}
           </button>
           <button className="icon-btn skip" onClick={() => session.skipBySeconds(15)}>
             <SkipGlyph /> <em>15</em>
