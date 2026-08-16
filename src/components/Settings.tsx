@@ -28,6 +28,9 @@ function formatSize(bytes: number): string {
 
 export function Settings({ onClose, onReconnect }: Props) {
   const [cache, setCache] = useState<CacheInfo | null>(null);
+  // distinguish "still counting" from "couldn't count" — otherwise a failure
+  // leaves the row saying "Calculating…" forever with a dead button
+  const [cacheState, setCacheState] = useState<"loading" | "ready" | "error">("loading");
   const [clearing, setClearing] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
   const [updateNote, setUpdateNote] = useState("");
@@ -36,8 +39,10 @@ export function Settings({ onClose, onReconnect }: Props) {
   async function refreshCache() {
     try {
       setCache(await invoke<CacheInfo>("cache_info"));
+      setCacheState("ready");
     } catch {
       setCache(null);
+      setCacheState("error");
     }
   }
 
@@ -105,9 +110,13 @@ export function Settings({ onClose, onReconnect }: Props) {
           <div>
             <strong>Narration cache</strong>
             <p>
-              {cache
-                ? `${cache.files.toLocaleString()} clips · ${formatSize(cache.bytes)} — clearing means already-heard audio is generated again.`
-                : "Calculating…"}
+              {cacheState === "loading" && "Calculating…"}
+              {cacheState === "error" && "Couldn't read the cache folder."}
+              {cacheState === "ready" &&
+                cache !== null &&
+                (cache.files === 0
+                  ? "Nothing cached yet — audio is saved here as you listen."
+                  : `${cache.files.toLocaleString()} clips · ${formatSize(cache.bytes)} — clearing means already-heard audio is generated again.`)}
             </p>
           </div>
           {confirmClear ? (
