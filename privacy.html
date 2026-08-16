@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Privacy — Fish Reader</title>
+    <meta name="description" content="What Fish Reader stores, what leaves your device, and what it never collects." />
+    <link rel="icon" href="favicon.svg" />
+    <link rel="stylesheet" href="style.css?v=a6db7b69" />
+  </head>
+  <body>
+    <header class="nav">
+      <div class="wrap nav-inner">
+        <a class="wordmark" href="./"><strong>Fish</strong>Reader</a>
+        <nav>
+          <a href="./">Home</a>
+          <a href="terms.html">Terms</a>
+        </nav>
+      </div>
+    </header>
+
+    <main class="wrap legal">
+      <h1>Privacy</h1>
+      <p class="legal-updated">Last updated: 16 August 2026</p>
+
+      <div class="legal-summary">
+        <h2>The short version</h2>
+        <ul>
+          <li>There are no accounts, no analytics, no advertising and no tracking cookies.</li>
+          <li>Your books, reading progress and generated audio are stored <strong>on your own device</strong>, never on our servers.</li>
+          <li><strong>Text you press play on is sent to Fish Audio</strong> to be turned into speech. That is how narration works and it cannot be avoided.</li>
+          <li>You use your own Fish Audio API key. It is stored on your device and passed straight through to Fish Audio.</li>
+          <li>Our narration relay does not store your key, your text or your audio.</li>
+          <li>You can delete everything at any time from Settings, or by clearing site data in your browser.</li>
+        </ul>
+      </div>
+
+      <h2>Who runs this</h2>
+      <p>
+        Fish Reader is built and operated by an individual developer based in Greece.
+        For anything in this policy, email
+        <a href="mailto:alekos7771@gmail.com">alekos7771@gmail.com</a>.
+        <span class="legal-note">[Operator to confirm: a postal address is required if you are ever asked to identify a data controller formally.]</span>
+      </p>
+
+      <h2>What is stored on your device</h2>
+      <p>All of the following stays in your browser (or in the app's folder on macOS) and is never uploaded:</p>
+      <table class="legal-table">
+        <thead><tr><th>What</th><th>Where</th><th>Why</th></tr></thead>
+        <tbody>
+          <tr><td>Your Fish Audio API key</td><td><code>localStorage</code></td><td>To narrate without asking you to paste it every time</td></tr>
+          <tr><td>Imported books and documents</td><td><code>IndexedDB</code></td><td>So your library is there when you come back</td></tr>
+          <tr><td>Generated narration audio</td><td><code>IndexedDB</code></td><td>So re-reading is instant and doesn't cost you again</td></tr>
+          <tr><td>Reading position, bookmarks, saved voices, settings</td><td><code>localStorage</code></td><td>To continue where you left off</td></tr>
+        </tbody>
+      </table>
+      <p>
+        Under the EU ePrivacy rules, storage that is strictly necessary to provide a
+        service you explicitly asked for does not require a consent banner. Everything
+        listed above exists solely to make the reader work — there is no analytics,
+        profiling or advertising storage of any kind. We still tell you about it on
+        first visit, because you should know where your data lives.
+      </p>
+
+      <h2>What leaves your device</h2>
+      <h3>Fish Audio</h3>
+      <p>
+        When you press play, the text of the passage being read and your API key are
+        sent to <a href="https://fish.audio" target="_blank" rel="noopener">Fish Audio</a>
+        so it can generate speech. Fish Audio is an independent company and processes
+        that request under its own privacy policy and terms. If you would rather no
+        text left your device at all, do not use narration.
+      </p>
+      <h3>Our narration relay</h3>
+      <p>
+        Web browsers are not allowed to call the Fish Audio speech endpoint directly, so
+        the web version passes that one request through a small relay we host. The relay
+        forwards your request and streams the audio back. It does not store your key,
+        your text or your audio, keeps no database, and does not log request contents.
+      </p>
+      <h3>Hosting</h3>
+      <p>
+        The site is hosted on GitHub Pages and the relay runs on Cloudflare. Like any
+        website, those providers process your IP address and request metadata in order
+        to serve you the page — this is ordinary infrastructure logging, not something
+        we collect or have access to.
+      </p>
+
+      <h2>What we never do</h2>
+      <ul>
+        <li>No accounts, sign-ups or passwords.</li>
+        <li>No analytics or measurement scripts. No Google Fonts, no CDNs, no embedded third-party scripts of any kind.</li>
+        <li>No advertising, no profiling, no selling or sharing of data — we hold none to sell.</li>
+        <li>No copies of your books on any server we run.</li>
+      </ul>
+
+      <h2>Your rights</h2>
+      <p>
+        If you are in the EU/UK you have rights of access, rectification, erasure,
+        restriction, portability and objection under the GDPR. In practice we hold
+        essentially no personal data about you, so there is usually nothing for us to
+        return or delete — the data is on your device and entirely under your control:
+      </p>
+      <ul>
+        <li><strong>See it:</strong> it is your library, visible in the app.</li>
+        <li><strong>Export it:</strong> your books came from your own files; they are unchanged on your device.</li>
+        <li><strong>Delete it:</strong> Settings → Disconnect removes your key; Settings → Clear cache removes generated audio; removing a book deletes it. Clearing site data in your browser erases everything at once.</li>
+      </ul>
+      <p>
+        For text that has already been sent to Fish Audio, those rights are exercised
+        with Fish Audio directly, as they are the ones processing it.
+      </p>
+      <p>
+        If you are in California, the CCPA/CPRA rights to know, delete and opt out of
+        sale apply. We do not sell or share personal information.
+      </p>
+
+      <h2>Children</h2>
+      <p>
+        Fish Reader is not directed at children under 13 and we do not knowingly collect
+        anything from them. It also requires a Fish Audio account, which has its own age
+        terms.
+      </p>
+
+      <h2>Changes</h2>
+      <p>
+        If this policy changes materially, the date at the top changes and the first-visit
+        notice is shown again. Past versions are visible in the project's public git history.
+      </p>
+
+      <p class="legal-disclaimer">
+        Written in plain language and in good faith by the developer, not by a lawyer.
+        It is an honest description of how the software actually behaves — you can verify
+        every claim in the source code — but it is not legal advice.
+      </p>
+    </main>
+
+    <footer class="wrap">
+      <p><strong>Fish</strong>Reader</p>
+      <p class="footer-links">
+        <a href="./">Home</a>
+        <a href="terms.html">Terms</a>
+        <a href="https://github.com/Mornify/fish-reader" target="_blank" rel="noopener">Source</a>
+      </p>
+    </footer>
+  </body>
+</html>
