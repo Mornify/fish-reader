@@ -27,6 +27,15 @@ for (const f of ['package.json']) {
 const conf = JSON.parse(fs.readFileSync('src-tauri/tauri.conf.json', 'utf8'));
 conf.version = '$VERSION';
 fs.writeFileSync('src-tauri/tauri.conf.json', JSON.stringify(conf, null, 2) + '\n');
+
+// Cargo.toml was left out, so the crate version drifted behind every release —
+// v0.2.3 was compiled as 'fish-reader v0.2.2'. Nothing user-facing reads it,
+// but it makes build logs and any future crash report name the wrong version.
+const cargo = fs.readFileSync('src-tauri/Cargo.toml', 'utf8');
+fs.writeFileSync(
+  'src-tauri/Cargo.toml',
+  cargo.replace(/^version = \"[^\"]+\"/m, 'version = \"$VERSION\"'),
+);
 "
 export PATH="$HOME/.cargo/bin:$PATH"
 

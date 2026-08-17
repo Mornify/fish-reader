@@ -1,6 +1,6 @@
 [package]
 name = "fish-reader"
-version = "0.2.2"
+version = "0.2.3"
 description = "Personal ElevenReader-style book reader powered by Fish Audio TTS"
 authors = ["Mornify"]
 edition = "2021"
