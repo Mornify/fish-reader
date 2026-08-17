@@ -1,0 +1,91 @@
+name: Release (Windows)
+
+# Windows cannot be cross-compiled from a Mac — it needs the MSVC toolchain and
+# WebView2 — so it is built here, on a Windows runner, and attached to the
+# release that `npm run release <version>` already created from the maintainer's
+# machine. macOS stays local because its bundle needs a re-signing step that CI
+# cannot do without an Apple certificate.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to attach a Windows build to (e.g. v0.2.3)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify the build carries no credentials
+        shell: bash
+        run: |
+          # same guarantee as the local release: never publish a build with a key
+          npm run build
+          bash scripts/check-secrets.sh dist
+
+      - name: Build the signed Windows bundle
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
+        run: npm run tauri build
+
+      - name: Publish the installer and update the manifest
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          VERSION="${TAG#v}"
+
+          BUNDLE=src-tauri/target/release/bundle
+          SETUP="$(find "$BUNDLE/nsis" -name '*-setup.exe' | head -1)"
+          ARCHIVE="$(find "$BUNDLE/nsis" -name '*-setup.nsis.zip' | head -1)"
+          SIG="$ARCHIVE.sig"
+
+          for f in "$SETUP" "$ARCHIVE" "$SIG"; do
+            [ -f "$f" ] || { echo "missing expected artifact: $f" >&2; exit 1; }
+          done
+
+          gh release upload "$TAG" "$SETUP" "$ARCHIVE" "$SIG" --clobber
+
+          # Merge into the existing manifest rather than replacing it — writing a
+          # Windows-only latest.json would stop every Mac install from updating.
+          curl -sL -o existing.json \
+            "https://github.com/${{ github.repository }}/releases/download/$TAG/latest.json" || true
+          [ -s existing.json ] || echo -n > existing.json
+
+          URL="https://github.com/${{ github.repository }}/releases/download/$TAG/$(basename "$ARCHIVE")"
+          node scripts/merge-updater-json.mjs \
+            "$([ -s existing.json ] && echo existing.json || echo -)" \
+            windows-x86_64 "$URL" "$SIG" "$VERSION" > latest.json
+
+          node -e "
+            const m = require('./latest.json');
+            if (!m.platforms['windows-x86_64']) { console.error('windows entry missing'); process.exit(1); }
+            console.log('manifest platforms:', Object.keys(m.platforms).join(', '));
+          "
+          gh release upload "$TAG" latest.json --clobber

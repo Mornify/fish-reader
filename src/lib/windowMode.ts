@@ -69,12 +69,20 @@ export async function toggleFullscreen(): Promise<void> {
   }
 }
 
-/** "Connect to device" — macOS routes ALL app audio via the system output,
- *  so the honest equivalent is jumping straight to the output picker. */
+/** "Connect to device" — the OS routes ALL app audio via the system output, so
+ *  the honest equivalent is jumping straight to the output picker rather than
+ *  pretending the app can choose a device itself.
+ *
+ *  The URL is per-platform: the macOS one is meaningless on Windows and would
+ *  leave the button silently doing nothing. */
 export async function openSoundOutputSettings(): Promise<void> {
+  const isWindows = /Windows|Win32|Win64/i.test(navigator.userAgent);
+  const url = isWindows
+    ? "ms-settings:sound"
+    : "x-apple.systempreferences:com.apple.Sound-Settings.extension";
   try {
     const { openUrl } = await import("@tauri-apps/plugin-opener");
-    await openUrl("x-apple.systempreferences:com.apple.Sound-Settings.extension");
+    await openUrl(url);
   } catch {
     /* ignore */
   }
