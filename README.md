@@ -78,3 +78,37 @@ Developer ID signature and notarization.
 - `npm run tauri dev` — native development app
 - `npm run build:mac` — release macOS bundle with a verified local signature
 - `cargo check --manifest-path src-tauri/Cargo.toml` — Rust backend check
+
+## Releasing
+
+Two platforms, released from two machines, because neither can build the other:
+Tauri cannot cross-compile Windows from macOS (it needs the MSVC toolchain and
+WebView2), and a macOS bundle needs a local re-signing step that a Windows box
+cannot do.
+
+**macOS** — from the Mac:
+
+```sh
+npm run release 0.2.3
+```
+
+Bumps the version everywhere, builds, signs the updater artifact, refuses to
+continue if the build contains a credential, re-signs the app (Tauri's default
+ad-hoc signature fails verification, which makes macOS call a downloaded copy
+"damaged"), then publishes the GitHub release and writes `latest.json`.
+
+**Windows** — afterwards, from a Windows PC, to *attach* to that same release:
+
+```powershell
+git checkout v0.2.3
+powershell -ExecutionPolicy Bypass -File scripts\release-windows.ps1 -Version 0.2.3
+```
+
+Prerequisites and the reasoning are in the script's header. It refuses to run if
+the checked-out version doesn't match the tag, and it *merges* into
+`latest.json` rather than replacing it — writing that file from one platform
+would delete the other's entry and silently stop those users updating.
+
+The Windows installer is **unsigned** (no code-signing certificate), so
+SmartScreen warns on first run. macOS builds are ad-hoc signed and not
+notarized, so a downloaded copy needs right-click → Open once.
